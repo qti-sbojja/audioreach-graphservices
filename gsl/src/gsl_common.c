@@ -185,6 +185,9 @@ int32_t gsl_send_spf_cmd(gpr_packet_t **packet, struct gsl_signal *sig_p,
 		if (opcode == APM_CMD_GRAPH_OPEN) {
 			rc = gsl_signal_timedwait(sig_p, GSL_GRAPH_OPEN_TIMEOUT_MS,
 				&ev_flags, &spf_status, rsp_pkt);
+		} else if (opcode == APM_CMD_GRAPH_START) {
+			rc = gsl_signal_timedwait(sig_p, GSL_GRAPH_START_TIMEOUT_MS,
+				&ev_flags, &spf_status, rsp_pkt);
 		} else {
 			rc = gsl_signal_timedwait(sig_p, GSL_SPF_TIMEOUT_MS, &ev_flags,
 				&spf_status, rsp_pkt);
