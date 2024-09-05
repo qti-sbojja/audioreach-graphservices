@@ -129,7 +129,7 @@ uint32_t gsl_mdf_utils_query_graph_ss_mask(uint32_t *sg_id_list,
 		return rc;
 	} else if (rc == AR_ENOTEXIST) {
 		/* if not ss*/
-		*ss_mask = GSL_GET_SPF_SS_MASK(AR_AUDIO_DSP);
+		*ss_mask = GSL_GET_SPF_SS_MASK(AR_DEFAULT_DSP);
 		return AR_EOK;
 	}
 
@@ -257,12 +257,13 @@ int32_t gsl_mdf_utils_get_supported_ss_info_from_acdb(void)
 			return rc;
 		}
 
-		_gsl_glb_mdf_info.ss_groups[0].master_proc = AR_AUDIO_DSP;
+		_gsl_glb_mdf_info.ss_groups[0].master_proc = AR_DEFAULT_DSP;
 		_gsl_glb_mdf_info.ss_groups[0].ss_mask =
-						GSL_GET_SPF_SS_MASK(AR_AUDIO_DSP);
+						GSL_GET_SPF_SS_MASK(AR_DEFAULT_DSP);
 		_gsl_glb_mdf_info.ss_groups[0].loaned_mem_sz = 0;
 		_gsl_glb_mdf_info.master_proc_mask =
-						GSL_GET_SPF_SS_MASK(AR_AUDIO_DSP);
+						GSL_GET_SPF_SS_MASK(AR_DEFAULT_DSP);
+
 		return AR_EOK;
 	}
 

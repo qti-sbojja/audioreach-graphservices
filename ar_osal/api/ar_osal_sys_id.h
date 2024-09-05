@@ -57,7 +57,11 @@ extern "C" {
 */
 #define AR_SUB_SYS_ID_LAST     AR_APSS2
 
-
+#ifdef MDSP_PROC
+#define AR_DEFAULT_DSP AR_MODEM_DSP
+#else
+#define AR_DEFAULT_DSP AR_AUDIO_DSP
+#endif
 
 #ifdef __cplusplus
 }

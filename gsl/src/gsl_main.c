@@ -2299,7 +2299,7 @@ int32_t gsl_add_database(struct gsl_acdb_data_files *acdb_data_files,
 		GSL_ERR("add acdb database into global heap failure");
 		goto exit;
 	}
-	rc = gsl_do_load_bootup_dyn_modules(AR_AUDIO_DSP,
+	rc = gsl_do_load_bootup_dyn_modules(AR_DEFAULT_DSP,
 				(gsl_acdb_handle_t)acdb_hdl);
 	if (rc) {
 		GSL_ERR("load bootup dync modules failure when adding acdb database");
@@ -2353,7 +2353,7 @@ int32_t gsl_remove_database(gsl_acdb_handle_t acdb_handle)
 		goto exit;
 	}
 
-	rc = gsl_do_unload_bootup_dyn_modules(AR_AUDIO_DSP, acdb_handle);
+	rc = gsl_do_unload_bootup_dyn_modules(AR_DEFAULT_DSP, acdb_handle);
 	if (rc) {
 		GSL_ERR("deregister dyn module by handle exited");
 		goto exit;

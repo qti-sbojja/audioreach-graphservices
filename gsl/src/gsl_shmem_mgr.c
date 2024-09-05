@@ -831,7 +831,7 @@ static int32_t free_page(int32_t bin_idx,
 	/* if this is a CMA page, hyp-unassign here */
 	if ((page->shmem_info.flags & (AR_SHMEM_BIT_MASK_HW_ACCELERATOR_FLAG
 		<< AR_SHMEM_SHIFT_HW_ACCELERATOR_FLAG)) != 0)
-		gsl_shmem_hyp_assign(page, AR_APSS,	AR_AUDIO_DSP);
+		gsl_shmem_hyp_assign(page, AR_APSS,	AR_DEFAULT_DSP);
 	if (!is_ext_mem) {
 		rc = ar_shmem_free(&page->shmem_info);
 		if (rc) {

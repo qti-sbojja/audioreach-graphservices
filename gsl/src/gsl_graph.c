@@ -1176,7 +1176,7 @@ continue_cma:
 
 			/* have mem filled, now assign it to the ML mem */
 			rc = gsl_shmem_hyp_assign(sg->cma_persist_cfg_data.handle,
-				AR_AUDIO_DSP, AR_APSS);
+				AR_DEFAULT_DSP, AR_APSS);
 			if (rc) {
 				GSL_ERR("hyp assign failed %d", rc);
 				goto cleanup;
@@ -1491,7 +1491,7 @@ int32_t gsl_graph_init(struct gsl_graph *graph)
 	graph->graph_state = GRAPH_IDLE;
 
 	/* Default proc id is assumed to be ADSP */
-	graph->proc_id = AR_AUDIO_DSP;
+	graph->proc_id = AR_DEFAULT_DSP;
 
 	for (i = 0; i < GRAPH_CMD_SIG_MAX; ++i) {
 		/*

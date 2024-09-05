@@ -29,9 +29,13 @@
 #include "ar_osal_log.h"
 
 #define  SHMEM_4K_ALIGNMENT       0x1000
-#define AR_MEM_DRIVER_PATH "/dev/msm_audio_mem"
-#define AR_MEM_DRIVER_PATH_CMA "/dev/msm_audio_mem_cma"
+#define AR_MEM_DRIVER_PATH "/dev/msm_audio_ion"
+#define AR_MEM_DRIVER_PATH_CMA "/dev/msm_audio_ion_cma"
+#ifdef MDSP_PROC
+#define DMABUF_SYS_HEAP_PATH "/dev/dma_heap/qcom,audio"
+#else
 #define DMABUF_SYS_HEAP_PATH "/dev/dma_heap/system"
+#endif
 #define DMABUF_SYS_HEAP_PATH_UNCACHED "/dev/dma_heap/qcom,system-uncached"
 #define DMABUF_SYS_HEAP_PATH_CMA "/dev/dma_heap/qcom,audio-ml"
 
