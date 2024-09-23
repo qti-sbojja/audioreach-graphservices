@@ -67,20 +67,6 @@ struct gsl_mdf_info {
 } _gsl_glb_mdf_info = {0, NULL, 0, 0, NULL, {0}, {FALSE}};
 
 static bool_t is_initialized = FALSE;
-/* dynamic pd reference count */
-static uint32_t pd_init_ref_cnt[AR_SUB_SYS_ID_LAST] = {0};
-
-static bool_t gsl_mdf_utils_is_dynamic_pd(uint32_t sys_id)
-{
-	uint32_t i = 0;
-
-	for (i = 0; i < _gsl_glb_mdf_info.num_procs; ++i) {
-		if (_gsl_glb_mdf_info.pd_info[i].proc_id == sys_id &&
-			_gsl_glb_mdf_info.pd_info[i].proc_type == DYNAMIC_PD)
-				return TRUE;
-	}
-	return FALSE;
-}
 
 bool_t gsl_mdf_utils_is_dynamic_pd(uint32_t proc_id)
 {
@@ -473,6 +459,13 @@ int32_t gsl_mdf_utils_shmem_alloc(uint32_t ss_mask, uint32_t master_proc)
 			}
 			ss_mask &= ~tmp_ss_mask;
 			continue;
+		} else if (grp->ss_restarted_flags) {
+			/*
+			 * ss_restarted_flags is used to indicate if remap
+			 * is needed for allocated loaned shmem. If there's
+			 * no loaned shmem allocated, this flag can be reset.
+			 */
+			grp->ss_restarted_flags = 0;
 		}
 
 		tmp_ss_mask = grp->ss_mask & ss_mask;
