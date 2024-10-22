@@ -26,11 +26,12 @@
   *
   * -  This module supports the following parameter IDs: \n
   * - #PARAM_ID_PROC_GROUP_INFO_PARAMS \n
+  * - #PARAM_ID_PROC_DOMAIN_INFO \n
   *
   * @{                   <-- Start of the Module -->
   */
 #define PARAM_ID_PROC_GROUP_INFO_PARAMS 0x0001
-
+#define PARAM_ID_PROC_DOMAIN_INFO 0x0002
 
 /** @h2xmle_description {Shared memory info of each group}
  * @h2xmlp_subStruct
@@ -67,7 +68,6 @@ typedef struct per_group_shmem_info_t per_group_shmem_info_t;
  *   PARAM_ID_PROC_GROUP_INFO_PARAMS}
  * @h2xmlp_description {Used to configure processor group info}
  */
-
 struct proc_group_info_params_t {
 	/** @h2xmle_description  {Number of processor group.}
 	 * @h2xmle_default      {1}
@@ -82,10 +82,53 @@ struct proc_group_info_params_t {
 #endif
 };
 
+typedef struct proc_group_info_params_t proc_group_info_params_t;
+
+/** @h2xmle_description {Processor domain type for each processor}
+ * @h2xmlp_subStruct
+ */
+struct proc_domain_type {
+	/** @h2xmle_description {Processor id}
+	 * @h2xmle_default      {2}
+	 */
+	uint32_t proc_id;
+	/** @h2xmle_description {Proc domain type, 1: static 2: dynamic}
+	 * @h2xmle_default      {1}
+	 */
+	uint32_t proc_type;
+};
+
+typedef struct proc_domain_type proc_domain_type_t;
+
+/**
+ * @h2xmlp_parameter   {"PARAM_ID_PROC_DOMAIN_INFO",
+ *   PARAM_ID_PROC_DOMAIN_INFO}
+ * @h2xmlp_description {Used to identify processor domain type}
+ */
+struct proc_domain_info {
+	/** @h2xmle_description {Number of processors}
+	 * @h2xmle_default      {1}
+	 */
+	uint32_t num_procs;
+	/**
+	 * @h2xmle_variableArraySize {num_procs}
+	 */
+	proc_domain_type_t domain_type[];
+};
 /**
  * @}
  */
-typedef struct proc_group_info_params_t proc_group_info_params_t;
+
+/*
+ * \brief Returns all proc domain ids
+ *  Returns number of SPF processors and fills proc_domain_type
+ *  array with SPF proc domain id and type
+ *
+ * \param[out] proc_domains: SPF processors domain info.
+ * \param[out] num_procs: number of SPF processors.
+ */
+int32_t gsl_mdf_utils_get_proc_domain_info(
+	proc_domain_type_t **proc_domains, uint32_t *num_procs);
 
 /*
  * \brief Returns all master proc ids

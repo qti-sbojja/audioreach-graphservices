@@ -11,6 +11,8 @@
 #include "ar_osal_error.h"
 #include "ar_osal_types.h"
 #include "ar_osal_sys_id.h"
+#include "ar_osal_shmem.h"
+#include "ar_osal_dyn_pd.h"
 #include "acdb.h"
 #include "gsl_common.h"
 #include "gsl_msg_builder.h"
@@ -65,6 +67,20 @@ struct gsl_mdf_info {
 } _gsl_glb_mdf_info = {0, NULL, 0, 0, NULL, {0}, {FALSE}};
 
 static bool_t is_initialized = FALSE;
+/* dynamic pd reference count */
+static uint32_t pd_init_ref_cnt[AR_SUB_SYS_ID_LAST] = {0};
+
+static bool_t gsl_mdf_utils_is_dynamic_pd(uint32_t sys_id)
+{
+	uint32_t i = 0;
+
+	for (i = 0; i < _gsl_glb_mdf_info.num_procs; ++i) {
+		if (_gsl_glb_mdf_info.pd_info[i].proc_id == sys_id &&
+			_gsl_glb_mdf_info.pd_info[i].proc_type == DYNAMIC_PD)
+				return TRUE;
+	}
+	return FALSE;
+}
 
 bool_t gsl_mdf_utils_is_dynamic_pd(uint32_t proc_id)
 {
@@ -178,6 +194,16 @@ int32_t gsl_mdf_utils_get_supported_ss_info_from_master_proc(
 	return rc;
 }
 
+int32_t gsl_mdf_utils_get_proc_domain_info(
+	proc_domain_type_t **proc_domains, uint32_t *num_procs)
+{
+	if (!proc_domains || !num_procs)
+		return AR_EBADPARAM;
+	*num_procs = _gsl_glb_mdf_info.num_procs;
+	*proc_domains = _gsl_glb_mdf_info.pd_info;
+	return AR_EOK;
+}
+
 bool_t gsl_mdf_utils_is_master_proc(uint32_t spf_ss_mask)
 {
 	if (spf_ss_mask & _gsl_glb_mdf_info.master_proc_mask)
@@ -202,9 +228,11 @@ int32_t gsl_mdf_utils_get_supported_ss_info_from_acdb(void)
 	AcdbBlob acdb_rsp = { 0, };
 	struct proc_group_info_params_t  *grps = NULL;
 	struct per_group_shmem_info_t *p = { 0, };
+	struct proc_domain_info *pd = NULL;
+	struct proc_domain_type *pt = NULL;
 	int32_t rc = AR_EOK;
-	uint32_t i = 0, j, *tmp_p;
-
+	uint32_t i = 0, j = 0, *tmp_p = NULL, *tmp_pos = NULL;
+	bool_t found = FALSE;
 
 	/* first query for size */
 	acdb_req.key_vector.num_keys = 0;
@@ -219,6 +247,8 @@ int32_t gsl_mdf_utils_get_supported_ss_info_from_acdb(void)
 	} else if (rc == AR_ENOTEXIST) {
 		/* if MDF driver data is not found, assume we only have ADSP */
 		_gsl_glb_mdf_info.num_ss_groups = 1;
+		_gsl_glb_mdf_info.num_procs = 0;
+		_gsl_glb_mdf_info.pd_info = NULL;
 		_gsl_glb_mdf_info.ss_groups =
 					gsl_mem_zalloc(sizeof(struct gsl_spf_ss_group));
 
@@ -246,60 +276,109 @@ int32_t gsl_mdf_utils_get_supported_ss_info_from_acdb(void)
 		&acdb_rsp, sizeof(acdb_rsp));
 	if (rc != AR_EOK) {
 		GSL_ERR("acdb query ACDB_CMD_GET_DRIVER_DATA failed %d", rc);
-		goto free_rsp_buff;
+		goto exit;
 	}
 
 	tmp_p = (uint32_t *)acdb_rsp.buf;
 	/* MID */
 	if (*tmp_p++ != GSL_MULTI_DSP_FWK_DATA_MID) {
 		GSL_ERR("got incorrect MID from ACDB %d", *((uint32_t *)acdb_rsp.buf));
-		goto free_rsp_buff;
-	}
-	/* PID */
-	if (*tmp_p++ != PARAM_ID_PROC_GROUP_INFO_PARAMS) {
-		GSL_ERR("got incorrect PID from ACDB %d", *((uint32_t *)acdb_rsp.buf));
-		goto free_rsp_buff;
-	}
-	/* SIZE */
-	++tmp_p; /* skip SIZE */
-	grps = (struct proc_group_info_params_t *)tmp_p;
-	_gsl_glb_mdf_info.num_ss_groups = grps->num_proc_groups;
-
-	_gsl_glb_mdf_info.ss_groups = gsl_mem_zalloc(
-					grps->num_proc_groups * sizeof(struct gsl_spf_ss_group));
-
-	if (_gsl_glb_mdf_info.ss_groups == NULL) {
-		rc = AR_ENOMEMORY;
-		goto free_rsp_buff;
+		goto exit;
 	}
 
-	/* make p point to group list */
-	p = (struct  per_group_shmem_info_t *)((uint8_t *)grps +
-		sizeof(struct proc_group_info_params_t));
-	for (; i < grps->num_proc_groups; ++i) {
-		_gsl_glb_mdf_info.ss_groups[i].ss_mask = 0;
-		_gsl_glb_mdf_info.ss_groups[i].master_proc = p->master_proc;
-		_gsl_glb_mdf_info.ss_groups[i].ss_mask |=
-						GSL_GET_SPF_SS_MASK(p->master_proc);
-		_gsl_glb_mdf_info.master_proc_mask |=
-						GSL_GET_SPF_SS_MASK(p->master_proc);
-		for (j = 0; j < p->num_satellite_procs; ++j) {
-			_gsl_glb_mdf_info.ss_groups[i].ss_mask |=
-				GSL_GET_SPF_SS_MASK(p->satellite_proc_ids[j]);
+	acdb_rsp.buf_size -= 4; /* PARAM ID GSL_MULTI_DSP_FWK_DATA_MID size */
+	while (acdb_rsp.buf_size > 0) {
+		if (*tmp_p == PARAM_ID_PROC_GROUP_INFO_PARAMS) {
+			tmp_pos = tmp_p;
+			++tmp_p; /* Skip Param ID */
+			++tmp_p; /* skip SIZE */
+			grps = (struct proc_group_info_params_t *)tmp_p;
+			_gsl_glb_mdf_info.num_ss_groups = grps->num_proc_groups;
+
+			_gsl_glb_mdf_info.ss_groups = gsl_mem_zalloc(
+							grps->num_proc_groups *
+							sizeof(struct gsl_spf_ss_group));
+
+			if (_gsl_glb_mdf_info.ss_groups == NULL) {
+				rc = AR_ENOMEMORY;
+				goto exit;
+			}
+
+			/* make p point to group list */
+			p = (struct  per_group_shmem_info_t *)((uint8_t *)grps +
+				sizeof(struct proc_group_info_params_t));
+			for (; i < grps->num_proc_groups; ++i) {
+				_gsl_glb_mdf_info.ss_groups[i].ss_mask = 0;
+				_gsl_glb_mdf_info.ss_groups[i].master_proc = p->master_proc;
+				_gsl_glb_mdf_info.ss_groups[i].ss_mask |=
+								GSL_GET_SPF_SS_MASK(p->master_proc);
+				_gsl_glb_mdf_info.master_proc_mask |=
+								GSL_GET_SPF_SS_MASK(p->master_proc);
+				for (j = 0; j < p->num_satellite_procs; ++j) {
+					_gsl_glb_mdf_info.ss_groups[i].ss_mask |=
+						GSL_GET_SPF_SS_MASK(p->satellite_proc_ids[j]);
+				}
+				/* store the client loaned mem size for this group */
+				_gsl_glb_mdf_info.ss_groups[i].loaned_mem_sz = p->shmem_size;
+
+				/* add this group's subsystems to global supported ss mask */
+
+				/* move p forward to next  processor group */
+				p = (struct per_group_shmem_info_t *)((uint8_t *)p +
+					sizeof(struct per_group_shmem_info_t) +
+					p->num_satellite_procs * sizeof(uint32_t));
+			}
+			acdb_rsp.buf_size -= ((void *)p - (void *)tmp_pos);
+			tmp_p = p;
+		} else if (*tmp_p == PARAM_ID_PROC_DOMAIN_INFO) {
+			tmp_pos = tmp_p;
+			++tmp_p; /* Skip Param ID */
+			++tmp_p; /* Skip Size */
+			pd = (struct proc_domain_info *)tmp_p;
+			_gsl_glb_mdf_info.num_procs = pd->num_procs;
+			_gsl_glb_mdf_info.pd_info = gsl_mem_zalloc(
+							pd->num_procs * sizeof(struct proc_domain_type));
+
+			if (_gsl_glb_mdf_info.pd_info == NULL) {
+				rc = AR_ENOMEMORY;
+				goto exit;
+			}
+			pt = pd->domain_type;
+			for (i = 0; i < pd->num_procs; ++i) {
+				_gsl_glb_mdf_info.pd_info[i].proc_id = pt->proc_id;
+				_gsl_glb_mdf_info.pd_info[i].proc_type = pt->proc_type;
+				++pt;
+			}
+			acdb_rsp.buf_size -= ((void *)pt - (void *)tmp_pos);
+			tmp_p = pt;
+		} else {
+			GSL_ERR("got incorrect PID from ACDB %d",
+					*((uint32_t *)acdb_rsp.buf));
+			goto exit;
 		}
-		/* store the client loaned mem size for this group */
-		_gsl_glb_mdf_info.ss_groups[i].loaned_mem_sz = p->shmem_size;
-
-		/* add this group's subsystems to global supported ss mask */
-
-		/* move p forward to next  processor group */
-		p = (struct per_group_shmem_info_t *)((uint8_t *)p +
-			sizeof(struct per_group_shmem_info_t) +
-			p->num_satellite_procs * sizeof(uint32_t));
+	}
+	for (i = 0; i < _gsl_glb_mdf_info.num_procs; ++i) {
+		found = FALSE;
+		for (j = 0; j <  grps->num_proc_groups; ++j) {
+			if ((GSL_TEST_SPF_SS_BIT(_gsl_glb_mdf_info.ss_groups[j].ss_mask,
+				_gsl_glb_mdf_info.pd_info[i].proc_id))) {
+					found = TRUE;
+					break;
+			}
+		}
+		if (found == FALSE) {
+			GSL_ERR("group info does not have proc %d",
+				_gsl_glb_mdf_info.pd_info[i].proc_id);
+			break;
+		}
 	}
 
-free_rsp_buff:
+exit:
 	gsl_mem_free(acdb_rsp.buf);
+	if (rc && _gsl_glb_mdf_info.ss_groups)
+		 free(_gsl_glb_mdf_info.ss_groups);
+	if (rc && _gsl_glb_mdf_info.pd_info)
+		 free(_gsl_glb_mdf_info.pd_info);
 
 	return rc;
 }
@@ -351,16 +430,23 @@ int32_t gsl_mdf_utils_shmem_alloc(uint32_t ss_mask, uint32_t master_proc)
 	for (i = 0; i < _gsl_glb_mdf_info.num_ss_groups; ++i) {
 		grp = &_gsl_glb_mdf_info.ss_groups[i];
 		/*
-		 * if loaned shmem for this group is already allocated, see if remap
-		 * is required to any ss due to ssr
+		 * If ss_mask is all clear it means we have allocated for all the
+		 * required subsystems.
+		 */
+		if (!ss_mask)
+			break;
+		/*
+		 * If loaned shmem for this group is already allocated, see if remap
+		 * is required to any ss due to ssr or map if dynamic pd.
 		 */
 		if (grp->loaned_mem.handle) {
 			if (grp->ss_restarted_flags) {
-				gsl_shmem_map_allocation(&grp->loaned_mem, GSL_SHMEM_LOANED,
-					grp->ss_restarted_flags, master_proc);
+				gsl_shmem_map_allocation_to_spf(&grp->loaned_mem,
+					GSL_SHMEM_LOANED, grp->ss_restarted_flags,
+					master_proc);
 				grp->ss_restarted_flags = 0;
 				/*
-				 * clear bits corresponding to current group to indicate that
+				 * Clear bits corresponding to current group to indicate that
 				 * we have already allocated memory for them
 				 */
 				ss_mask &= ~grp->ss_mask;
@@ -398,16 +484,10 @@ int32_t gsl_mdf_utils_shmem_alloc(uint32_t ss_mask, uint32_t master_proc)
 				break;
 			}
 			/*
-			 * clear bits corresponding to current group to indicate that we
-			 * have already allocated memory for them
+			 * Clear bits corresponding to current group to indicate that we
+			 * have already allocated memory for them'
 			 */
 			ss_mask &= ~tmp_ss_mask;
-			/*
-			 * if ss_mask is all clear it means we have allocated for all the
-			 * required subsystems
-			 */
-			if (!ss_mask)
-				break;
 		}
 	}
 	/* if we did not find a matching group for atleast one ss then error out */
@@ -419,15 +499,14 @@ exit:
 }
 
 /*
- * frees the mdf shmem for all ss groups, this function should only be called
- * during de-init as we keep the MDF loaned memory allocated after the first
- * MDF use-case comes in
+ * frees the mdf shmem for the request ss_mask.
  */
-int32_t gsl_mdf_utils_shmem_free(void)
+int32_t gsl_mdf_utils_shmem_free(uint32_t ss_mask)
 {
 	int32_t rc = AR_EOK;
 	uint32_t i = 0;
 	struct gsl_spf_ss_group *grp = NULL;
+	uint32_t tmp_ss_mask = 0;
 
 	/* loop through the groups and free the shmem for each */
 	for (i = 0; i < _gsl_glb_mdf_info.num_ss_groups; ++i) {
@@ -435,6 +514,7 @@ int32_t gsl_mdf_utils_shmem_free(void)
 		if (grp->loaned_mem.handle) {
 			if (ss_mask == AR_SUB_SYS_IDS_MASK ||
 				gsl_shmem_get_mapped_ss_mask(&grp->loaned_mem) == ss_mask) {
+
 				GSL_DBG("free loaned memory, ss_mask 0x%x", ss_mask);
 				rc = gsl_shmem_free(&grp->loaned_mem);
 				if (rc == AR_EOK)
@@ -555,6 +635,7 @@ int32_t gsl_mdf_utils_deregister_dynamic_pd(uint32_t ss_mask,
 				if (rc != AR_EOK)
 					GSL_ERR("failed to free loaned shmem %d", rc);
 				GSL_DBG("deinitialize dynamic pd %d", sys_id);
+
 				_gsl_glb_mdf_info.pd_deinit_pending[sys_id] = TRUE;
 				ar_osal_dyn_pd_deinit(sys_id);
 				_gsl_glb_mdf_info.pd_deinit_pending[sys_id] = FALSE;
@@ -585,8 +666,9 @@ int32_t gsl_mdf_utils_deinit(void)
 
 	if (is_initialized) {
 		is_initialized = FALSE;
-		rc = gsl_mdf_utils_shmem_free();
+		rc = gsl_mdf_utils_shmem_free(AR_SUB_SYS_IDS_MASK);
 		gsl_mem_free(_gsl_glb_mdf_info.ss_groups);
+		gsl_mem_free(_gsl_glb_mdf_info.pd_info);
 		gsl_memset(&_gsl_glb_mdf_info, 0, sizeof(_gsl_glb_mdf_info));
 	}
 	return rc;

@@ -2815,6 +2815,10 @@ static int32_t gsl_graph_close_single_gkv(struct gsl_graph *graph,
 		gkv_node->num_of_gp_cals = 0;
 	}
 
+	rc = gsl_mdf_utils_deregister_dynamic_pd(graph->ss_mask, graph->proc_id);
+	if (rc)
+		GSL_ERR("dynamic pd de-init failed, status %d", rc);
+
 free_pruned_sg_info:
 	rc = check_and_deregister_dynamic_pd(graph, &pruned_sg_ids);
 

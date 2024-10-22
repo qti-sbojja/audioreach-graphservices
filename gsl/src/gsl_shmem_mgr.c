@@ -21,6 +21,7 @@
 #include "gpr_ids_domains.h"
 #include "gpr_api_inline.h"
 #include "gsl_spf_ss_state.h"
+#include "gsl_mdf_utils.h"
 
 /**
  * all pages must have size that is a multiple of this
@@ -115,7 +116,7 @@ struct gsl_shmem_page {
 	/** index of the bin this page belongs to */
 	uint32_t bin_idx;
 	/* we need to keep this list around as it is needed in free */
-	uint8_t ss_id_list[AR_SUB_SYS_ID_LAST];
+	ar_shmem_proc_info ss_id_list[AR_SUB_SYS_ID_LAST];
 	/** master proc id to which this page is mapped to */
 	uint32_t master_proc;
 	/** list of all used and empty blocks */
@@ -474,8 +475,8 @@ static int32_t gsl_shmem_map_page_to_spf(struct gsl_shmem_page *page,
 			rc = gsl_shmem_handle_rsp(rsp_pkt, master_proc_id,
 				APM_CMD_RSP_SHARED_SATELLITE_MEM_MAP_REGIONS);
 			if (rc) {
-				GSL_ERR("handle shmem response failed %d", rc)
-					goto exit;
+				GSL_ERR("handle shmem response failed %d", rc);
+				goto exit;
 			}
 		}
 		++sys_id;
@@ -600,6 +601,9 @@ static int32_t allocate_page(uint32_t page_size, uint32_t bin_idx,
 	uint32_t tmp_spf_ss_mask = spf_ss_mask;
 	uint8_t sys_id = AR_SUB_SYS_ID_FIRST;
 	uint32_t max_num_blocks = 1;
+	uint32_t num_procs = 0;
+	struct proc_domain_type *proc_domains = NULL;
+	uint32_t dynamic_proc_ss_mask = 0, i = 0;
 
 	/*
 	 * if we are in the dedicated bin then we only need one block since we
@@ -626,6 +630,15 @@ static int32_t allocate_page(uint32_t page_size, uint32_t bin_idx,
 
 	page->shmem_info.num_sys_id = 0;
 	page->shmem_info.sys_id = page->ss_id_list;
+
+	gsl_mdf_utils_get_proc_domain_info(&proc_domains, &num_procs);
+	if (!proc_domains)
+		num_procs = 0;
+	for (i = 0; i < num_procs; ++i) {
+		if (proc_domains[i].proc_type == DYNAMIC_PD)
+			dynamic_proc_ss_mask |=
+				GSL_GET_SPF_SS_MASK(proc_domains[i].proc_id);
+	}
 	/* populate ss_id_list based on spf_ss_mask */
 	while (tmp_spf_ss_mask) {
 		if (GSL_TEST_SPF_SS_BIT(spf_ss_mask, sys_id)) {
@@ -770,7 +783,6 @@ static int32_t free_page(int32_t bin_idx,
 	if ((page->shmem_info.flags & (AR_SHMEM_BIT_MASK_HW_ACCELERATOR_FLAG
 		<< AR_SHMEM_SHIFT_HW_ACCELERATOR_FLAG)) != 0)
 		gsl_shmem_hyp_assign(page, AR_APSS,	AR_AUDIO_DSP);
-
 	if (!is_ext_mem) {
 		rc = ar_shmem_free(&page->shmem_info);
 		if (rc) {
@@ -1143,6 +1155,21 @@ int32_t gsl_shmem_free(struct gsl_shmem_alloc_data *alloc_data)
 	return rc;
 }
 
+int32_t gsl_shmem_unmap_allocation(struct gsl_shmem_alloc_data *alloc_data,
+	uint32_t ss_mask_to_unmap_to)
+{
+	int32_t rc = AR_EOK;
+	struct gsl_shmem_page *page = alloc_data->handle;
+	uint32_t master_proc_id = page->master_proc;
+
+	rc = gsl_shmem_unmap_page_from_spf(page, ss_mask_to_unmap_to);
+	if (rc)
+		GSL_ERR("failed to unmap page from spf %d", rc);
+
+	ar_shmem_unmap(&page->shmem_info);
+
+	return rc;
+}
 int32_t gsl_shmem_map_extern_mem(uint64_t ext_mem_hdl, uint32_t size_bytes,
 	uint32_t master_proc_id, struct gsl_shmem_alloc_data *alloc_data)
 {
@@ -1268,10 +1295,11 @@ void gsl_shmem_remap_pre_alloc(uint32_t master_proc_id)
 /*
  * map an allocation to specified subsystems only
  */
-uint32_t gsl_shmem_map_allocation(const struct gsl_shmem_alloc_data *alloc_data,
+int32_t gsl_shmem_map_allocation_to_spf(
+	const struct gsl_shmem_alloc_data *alloc_data,
 	uint32_t flags, uint32_t ss_mask_to_map_to, uint32_t master_proc_id)
 {
-	uint32_t rc = AR_EBADPARAM;
+	int32_t rc = AR_EBADPARAM;
 	struct gsl_shmem_page *page = NULL;
 
 	if (!ctxt[master_proc_id])
