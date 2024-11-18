@@ -71,6 +71,7 @@ ar_osal_mutex_t log_mutex;
 
 #define GSL_DYN_DL_RETRY_MS (500)
 #define GSL_DYN_DL_NUM_RETRIES 4
+#define GSL_DYN_DL_NUM_RETRIES_SSR 6
 
 #define GSL_SS_RETRY_MS (10)
 
@@ -1225,6 +1226,7 @@ int32_t gsl_open(const struct gsl_key_vector *graph_key_vect,
 	struct proc_domain_type *proc_domains = NULL;
 	bool_t is_shmem_supported = TRUE;
 	uint8_t i = 0;
+	uint8_t j = 0;
 	int32_t ss_retry_count = 10;
 
 	if (graph_handle == NULL)
@@ -1273,8 +1275,7 @@ int32_t gsl_open(const struct gsl_key_vector *graph_key_vect,
 					continue;
 				}
 			}
-
-			/* retry for up to 3 seconds to help in cases
+            /* retry for up to 3 seconds to help in cases
 			    where ADSP RPC thread not ready */
 			for (j = 0; j < GSL_DYN_DL_NUM_RETRIES_SSR; ++j) {
 				rc = gsl_do_load_bootup_dyn_modules(i, NULL);
@@ -1285,9 +1286,6 @@ int32_t gsl_open(const struct gsl_key_vector *graph_key_vect,
 					break;
 				}
 			}
-
-			GSL_MUTEX_LOCK(gsl_ctxt.open_close_lock);
-			gsl_ctxt.spf_restart[i] = FALSE;
 		}
 	}
 	GSL_MUTEX_UNLOCK(gsl_ctxt.open_close_lock);
