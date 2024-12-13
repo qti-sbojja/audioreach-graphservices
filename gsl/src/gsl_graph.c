@@ -760,7 +760,6 @@ static void gsl_graph_ckv_list_print(AcdbKeyVectorList *rsp)
 static void gsl_graph_check_ckvs(struct gsl_key_vector *gkv, struct gsl_key_vector *ckv)
 {
 	AcdbKeyVectorList rsp;
-	uint32_t rsp_size = sizeof(AcdbKeyVectorList);
 	AcdbKeyVector *kvs = NULL;
 	uint8_t* pKv = NULL;
 	uint32_t i = 0, j = 0;
