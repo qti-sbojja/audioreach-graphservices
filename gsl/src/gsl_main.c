@@ -814,13 +814,22 @@ int32_t gsl_get_graph_tkvs(const struct gsl_key_vector *graph_key_vect,
 int32_t gsl_get_graph_ckvs(const struct gsl_key_vector *graph_key_vect,
 	struct gsl_key_vector_list *data_payload)
 {
-	int32_t rc = AR_EOK;
 
-	if (graph_key_vect == NULL)
+	int32_t rc = AR_EOK;
+	AcdbGraphKeyVector cmd_struct;
+
+	if (graph_key_vect == NULL) {
+		GSL_ERR("graph_key_vect is NULL");
 		return AR_EBADPARAM;
+	}
+
+	/* need to construct AcdbKeyVector because it is packed, gsl_kv isn't */
+	cmd_struct.num_keys = graph_key_vect->num_kvps;
+	cmd_struct.graph_key_vector = (AcdbKeyValuePair *)graph_key_vect->kvp;
+
 	/* query acdb */
-	rc = acdb_ioctl(ACDB_CMD_GET_GRAPH_CAL_KVS, graph_key_vect,
-		sizeof(*graph_key_vect), (void *)data_payload, sizeof(struct gsl_key_vector_list));
+	rc = acdb_ioctl(ACDB_CMD_GET_GRAPH_CAL_KVS, &cmd_struct,
+		sizeof(cmd_struct), (void *)data_payload, sizeof(struct gsl_key_vector_list));
 	if (rc != AR_EOK)
 		GSL_ERR("acdb query ACDB_CMD_GET_GRAPH_CAL_KVS failed %d", rc);
 
