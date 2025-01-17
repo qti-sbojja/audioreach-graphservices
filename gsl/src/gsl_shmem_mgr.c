@@ -436,15 +436,19 @@ static int32_t gsl_shmem_map_page_to_spf(struct gsl_shmem_page *page,
 				mmap_sat->mmap_header.property_flag |=
 				APM_MEMORY_MAP_BIT_MASK_IS_MEM_LOANED;
 			/*
-			 * For dynamic PD set address type to indicate gpr kernel
-			 * driver to skip conversion to physical address and pass
-			 *    the handle as is to DSP.
+			 * For dynamic PD indicate gpr kernel driver to skip conversion
+			 * to physical address and pass the handle as is to DSP by setting
+			 * address type.
 			 */
-			if (dynamic_pd)
-				mmap_sat->mmap_header.property_flag |=
-					APM_MEMORY_MAP_MEMORY_ADDRESS_TYPE_FD <<
-						APM_MEMORY_MAP_SHIFT_MEMORY_ADDRESS_TYPE;
-
+			for (int32_t i = 0; i < AR_SUB_SYS_ID_LAST; i++) {
+				if (page->ss_id_list[i].proc_id == sys_id &&
+					page->ss_id_list[i].proc_type == DYNAMIC_PD) {
+					mmap_sat->mmap_header.property_flag |=
+						APM_MEMORY_MAP_MEMORY_ADDRESS_TYPE_FD <<
+							APM_MEMORY_MAP_SHIFT_MEMORY_ADDRESS_TYPE;
+					break;
+				}
+			}
 			mmap_sat->mmap_payload.shm_addr_lsw = page->shmem_info.ipa_lsw;
 			mmap_sat->mmap_payload.shm_addr_msw = page->shmem_info.ipa_msw;
 			mmap_sat->mmap_payload.mem_size_bytes = page->size_bytes;
