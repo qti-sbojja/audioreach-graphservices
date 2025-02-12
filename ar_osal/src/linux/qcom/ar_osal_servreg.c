@@ -18,6 +18,7 @@
 #include "ar_osal_error.h"
 #include "ar_osal_log.h"
 #include "ar_osal_mem_op.h"
+#include <errno.h>
 #include <stdlib.h>
 #include <string.h>
 #include <fcntl.h>

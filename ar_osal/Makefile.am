@@ -60,10 +60,14 @@ if ARGS_USE_SYSLOG
 AM_CFLAGS += -DAR_OSAL_USE_SYSLOG
 endif
 
+if LINUX_HEADER_KLM
+AM_CFLAGS += -DMSM_AUDIO_KLM
+endif
+
 libar_osal_la_LIBADD = -lrt -lpthread
 
 if CUTILS_SUPPORTED
-libar_osal_la_LIBADD += -lcutils
+libar_osal_la_LIBADD += -lcutils -llog
 AM_CFLAGS += -DAR_OSAL_USE_CUTILS
 endif
 
@@ -81,7 +85,7 @@ lib_include_HEADERS = $(osal_sources)
 lib_LTLIBRARIES = libar-osal.la
 libar_osal_la_CC = @CC@
 libar_osal_la_SOURCES = $(osal_c_sources)
-libar_osal_la_CFLAGS = $(AM_CFLAGS) @DIAG_CFLAGS@
+libar_osal_la_CFLAGS = $(AM_CFLAGS) @DIAG_CFLAGS@  @LT_VERSION_NUMBER@
 
 if LIBION_SUPPORTED
 libar_osal_la_LIBADD += -lion

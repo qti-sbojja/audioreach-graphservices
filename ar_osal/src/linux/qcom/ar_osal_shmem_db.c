@@ -20,7 +20,11 @@
 #include <sys/ioctl.h>
 #include <linux/dma-buf.h>
 #include <linux/dma-heap.h>
+#ifdef MSM_AUDIO_KLM
+#include <sound/qcom/msm_audio.h>
+#else
 #include <linux/msm_audio.h>
+#endif
 #ifdef AR_OSAL_USE_CUTILS
 #include <cutils/properties.h>
 #endif
@@ -44,6 +48,14 @@
 #define AR_FD_OPEN_RETRY_US (500*1000)
 #define AR_FD_OPEN_NUM_RETRIES 4
 
+#define AR_FD_OPEN_RETRY_US (500*1000)
+#define AR_FD_OPEN_NUM_RETRIES 4
+
+#ifdef AR_OSAL_USE_DYNAMIC_PD
+static int32_t ar_dsp_domain_id[AR_SUB_SYS_ID_LAST + 1] = {
+    -1, MDSP_DOMAIN_ID, ADSP_DOMAIN_ID, -1, SDSP_DOMAIN_ID, CDSP_DOMAIN_ID, -1
+};
+#endif
 
 typedef struct ar_shmem_handle_data {
   int32_t heap_fd;
@@ -311,13 +323,15 @@ int32_t ar_shmem_init(void)
     }
 
     for (int j = 0; j < AR_FD_OPEN_NUM_RETRIES; ++j) {
-      pdata->armem_fd = open(AR_MEM_DRIVER_PATH, O_RDWR);
-      if (pdata->armem_fd < 0) {
-        AR_LOG_ERR(AR_OSAL_SHMEM_LOG_TAG, "armem fd open(%s) failed with errno:%d, retries %d\n", AR_MEM_DRIVER_PATH, errno, j);
-        ar_osal_micro_sleep(AR_FD_OPEN_RETRY_US);
-      } else {
-        break;
-      }
+        pdata->armem_fd = open(AR_MEM_DRIVER_PATH, O_RDWR);
+        if (pdata->armem_fd < 0) {
+           AR_LOG_ERR(AR_OSAL_SHMEM_LOG_TAG, "armem fd open(%s) failed with errno:%d, retries %d\n",
+                      AR_MEM_DRIVER_PATH, errno, j);
+           ar_osal_micro_sleep(AR_FD_OPEN_RETRY_US);
+        }
+        else {
+             break;
+        }
     }
     if (pdata->armem_fd < 0) {
       status = AR_ENOTEXIST;
