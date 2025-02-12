@@ -1,5 +1,5 @@
 #                                               -*- Autoconf -*-
-# configure.ac -- Autoconf script for spf
+# configure.ac -- Autoconf script for args
 #
 
 # Process this file with autoconf to produce a configure script
@@ -16,6 +16,13 @@ AC_PROG_CXX
 AC_PROG_LIBTOOL
 AM_PROG_AR
 
+m4_define([LT_MAJOR], [1])
+m4_define([LT_MINOR], [0])
+m4_define([LT_PATCH], [0])
+
+AC_SUBST([LT_VERSION], LT_MAJOR.LT_MINOR.LT_PATCH)
+AC_SUBST([LT_VERSION_NUMBER], LT_MAJOR:LT_MINOR:LT_PATCH)
+
 AC_ARG_WITH([qcom],
     AS_HELP_STRING([install qcom header files (default is no)]),
         [with_qcom=$withval],
@@ -28,9 +35,21 @@ AC_ARG_WITH([syslog],
 	    [with_syslog=no])
 	    AM_CONDITIONAL([ARGS_USE_SYSLOG], [test "x${with_syslog}" = "xyes"])
 
+AC_ARG_WITH([kernelheader],
+    AS_HELP_STRING([use kernelheader (default is no)]),
+        [with_kernelheader=$withval],
+            [with_kernelheader=no])
+            AM_CONDITIONAL([KERNEL_HEADER], [test "x${with_kernelheader}" = "xyes"])
+
+
 AC_ARG_WITH([glib],
       AC_HELP_STRING([--with-glib],
          [enable glib, Build against glib. Use this when building for HLOS systems which use glib]))
+
+AC_ARG_WITH(sanitized-headers,
+      AS_HELP_STRING([--with-sanitized-headers=DIR],
+         [Specify the location of the sanitized Linux headers]),
+         [CFLAGS="$CFLAGS -I$withval"])
 
 if (test "x${with_glib}" = "xyes"); then
         PKG_CHECK_MODULES(GTHREAD, gthread-2.0 >= 2.16, dummy=yes,

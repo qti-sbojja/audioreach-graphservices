@@ -20,7 +20,7 @@
 #include <sys/ioctl.h>
 #include <linux/dma-buf.h>
 #include <linux/dma-heap.h>
-#ifdef MSM_AUDIO_KLM
+#ifdef MSM_AUDIO_CUSTOM_STACK
 #include <sound/qcom/msm_audio.h>
 #else
 #include <linux/msm_audio.h>
