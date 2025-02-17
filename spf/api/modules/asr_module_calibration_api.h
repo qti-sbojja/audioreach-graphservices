@@ -11,11 +11,12 @@
     @h2xml_title_date       {Feb 26, 2024} */
 
 #include "module_cmn_api.h"
+#include "imcl_fwk_intent_api.h"
 
 /* Global unique Module ID definition
    Module library is independent of this number, it defined here for static
    loading purpose only */
-#define MODULE_ID_ASR    0x07001176
+#define MODULE_ID_ASR    0x7001176
 
 /**
     @h2xmlm_module       {"MODULE_ID_ASR",
@@ -52,7 +53,8 @@
     @h2xmlm_isOffloadable       {true}
     @h2xmlm_stackSize           {4096}
     @h2xmlm_toolPolicy          {Calibration}
-
+    @h2xmlm_ctrlDynamicPortIntent   { "DAM-ASR Control" = INTENT_ID_AUDIO_DAM_DETECTION_ENGINE_CTRL,
+                                      maxPorts= 1 }
 
     @{                   <-- Start of the Module -->
     @h2xml_Select        {"param_id_module_enable_t"}
@@ -86,7 +88,7 @@ struct asr_version_t
 #include "spf_end_pack.h"
 ;
 
-/*   @h2xml_Select                       {asr_version_t}
+/*   @h2xml_Select                                {asr_version_t}
      @h2xmlm_InsertParameter */
 
 /*  ID of the ASR configuration parameter used by MODULE_ID_ASR.*/
@@ -105,43 +107,44 @@ typedef struct param_id_asr_config_t param_id_asr_config_t;
  ASR module.
  */
 
-/* Supported language codes
+/*
+Supported language codes
 */
-typedef enum ASR_LANGUAGE_CODE{
+typedef enum ASR_LANGUAGE_CODE_t{
     en_US=0,
     zh_CN,
     hi_IN,
     es_US,
     ko_KR,
     ja_JP,
-    language_code_end
-}ASR_LANGUAGE_CODE;
+    language_code_end_1
+}ASR_LANGUAGE_CODE_t;
 
 struct param_id_asr_config_t
 {
-    uint32_t input_language_code;               // input language code, refer enum ASR_LANGUAGE_CODE
+    uint32_t input_language_code;               // input language code, refer enum ASR_LANGUAGE_CODE_t
     /**< @h2xmle_description {Code to specify ASR input language.}
-         @h2xmle_rangeList   {"en_US"=en_US;"zh_CN"=zh_CN;"hi_IN"=hi_IN;"es_US"=es_US;"ko_KR"=ko_KR;"ja_JP"=ja_JP;"language_code_end"=language_code_end}
+         @h2xmle_rangeList   {"en_US"=en_US;"zh_CN"=zh_CN;"hi_IN"=hi_IN;"es_US"=es_US;"ko_KR"=ko_KR;"ja_JP"=ja_JP;"language_code_end"=language_code_end_1}
          @h2xmle_default     {en_US} */
-    uint32_t output_language_code;              // output language code, refer enum ASR_LANGUAGE_CODE
+    uint32_t output_language_code;              // output language code, refer enum ASR_LANGUAGE_CODE_t
     /**< @h2xmle_description {Code to specify ASR output language.}
-         @h2xmle_rangeList   {"en_US"=en_US;"zh_CN"=zh_CN;"hi_IN"=hi_IN;"es_US"=es_US;"ko_KR"=ko_KR;"ja_JP"=ja_JP;"language_code_end"=language_code_end}
+         @h2xmle_rangeList   {"en_US"=en_US;"zh_CN"=zh_CN;"hi_IN"=hi_IN;"es_US"=es_US;"ko_KR"=ko_KR;"ja_JP"=ja_JP;"language_code_end"=language_code_end_1}
          @h2xmle_default     {en_US} */
-    uint32_t enable_language_detection;         // language detection switch enable/disable flag
-    /**< @h2xmle_description {Flag to enable/disable the language detection switch.}
-         @h2xmle_rangeList   {enabled=0;disabled=1}
+    uint32_t enable_language_detection;         // language detection switch enable or disable flag
+    /**< @h2xmle_description {Flag to enable or disable the language detection switch.}
+         @h2xmle_rangeList   {enabled=1;disabled=0}
          @h2xmle_default     {0} */
-    uint32_t enable_translation;                // translation switch enable/disable flag
-    /**< @h2xmle_description {Flag to enable/disable the translation switch.}
-         @h2xmle_rangeList   {enabled=0;disabled=1}
+    uint32_t enable_translation;                // translation switch enable or disable flag
+    /**< @h2xmle_description {Flag to enable or disable the translation switch.}
+         @h2xmle_rangeList   {enabled=1;disabled=0}
          @h2xmle_default     {0} */
-    uint32_t enable_continuous_mode;            // continuous mode enable/disable flag
-    /**< @h2xmle_description {Flag to enable/disable the continuous mode.}
-         @h2xmle_rangeList   {enabled=0;disabled=1}
+    uint32_t enable_continuous_mode;            // continuous mode enable or disable flag
+    /**< @h2xmle_description {Flag to enable or disable the continuous mode.}
+         @h2xmle_rangeList   {enabled=1;disabled=0}
          @h2xmle_default     {0} */
-    uint32_t enable_partial_transcription;      // partial transcription switch enable/disable flag
-    /**< @h2xmle_description {Flag to enable/disable the partial transcription switch.}
-         @h2xmle_rangeList   {enabled=0;disabled=1}
+    uint32_t enable_partial_transcription;      // partial transcription switch enable or disable flag
+    /**< @h2xmle_description {Flag to enable or disable the partial transcription switch.}
+         @h2xmle_rangeList   {enabled=1;disabled=0}
          @h2xmle_default     {0} */
     uint32_t threshold;
     /**< @h2xmle_description {Minimum confidence value (threshold) needed by the ASR to generate transcription.}
@@ -152,7 +155,7 @@ struct param_id_asr_config_t
          @h2xmle_range       {0..30000} ms
          @h2xmle_default     {10000} */
     uint32_t vad_hangover_duration;             // "No speech" duration needed before determining speech has ended (in ms)
-    /**< @h2xmle_description {"No speech" duration needed before determining speech has ended, in ms.}
+    /**< @h2xmle_description {'No speech' duration needed before determining speech has ended, in ms.}
          @h2xmle_range       {0..5000} ms
          @h2xmle_default     {1000} */
 }
@@ -191,7 +194,7 @@ struct param_id_asr_input_threshold_t
 #include "spf_end_pack.h"
 ;
 
-/*   @h2xml_Select                        {param_id_asr_input_threshold_t}
+/*   @h2xml_Select                 {param_id_asr_input_threshold_t}
      @h2xmlm_InsertParameter */
 
 
@@ -220,7 +223,38 @@ struct param_id_asr_force_output_t
 #include "spf_end_pack.h"
 ;
 
-/*   @h2xml_Select                     {param_id_asr_force_output_t}
+/*  Payload of the PARAM_ID_ASR_OUTPUT_CONFIG parameter used by the
+ ASR module.
+ */
+
+typedef enum asr_output_mode_t
+{
+     NON_BUFFERED = 0,   /* Send ASR engine output immediately. Each buffer shall have one payload
+                          corresponding to a partial/complete segment of speech.
+                          Typical usage : live display of output. */
+
+     BUFFERED,           /* Buffer up ASR engine output based on configured buffer size from client.
+                         Send the event to clients once buffer is full.
+                         Typical usage : save transcription output in background. */
+
+     LOGGER,              /* Buffer up ASR engine output based on configured buffer size from client.
+                         Send the output when the client queries it.
+                         Typical usage : save transcription output in a circular buffer. */
+
+     TS_NON_BUFFERED,    /* Send ASR engine output with timestamps immediately. Each buffer shall have one payload
+                          corresponding to a partial/complete segment of speech.
+                          Typical usage : live display of output. */
+
+     TS_BUFFERED,        /* Buffer up ASR engine output with timestamps based on configured buffer size from client.
+                         Send the event to clients once buffer is full.
+                         Typical usage : save transcription output in background. */
+
+     TS_LOGGER           /* Buffer up ASR engine output with timestamps based on configured buffer size from client.
+                         Send the output when the client queries it.
+                         Typical usage : save transcription output in a circular buffer. */
+}asr_output_mode_t;
+
+/*   @h2xml_Select                 {param_id_asr_force_output_t}
      @h2xmlm_InsertParameter */
 
 /*  ID of the ASR output configuration parameter used by MODULE_ID_ASR.*/
@@ -235,30 +269,18 @@ typedef struct param_id_asr_output_config_t param_id_asr_output_config_t;
 #include "spf_begin_pack.h"
 #include "spf_begin_pragma.h"
 
-/*  Payload of the PARAM_ID_ASR_OUTPUT_CONFIG parameter used by the
- ASR module.
- */
 
-typedef enum
-{
-    NON_BUFFERED = 0,     /* Send ASR engine output immediately. Each buffer shall have one payload
-                          corresponding to a partial/complete segment of speech.
-                          Typical usage : live display of output. */
-
-    BUFFERED,            /* Buffer up ASR engine output based on configured buffer size from client.
-                         Send the event to clients once buffer is full.
-                         Typical usage : save transcription output in background. */
-};
 
 struct param_id_asr_output_config_t
 {
     uint32_t output_mode;               // mode of ASR output data requested by application
     /**< @h2xmle_description {Configuration to specify transcription output mode depending on usecase requirement.
                               NON_BUFFERED - Output of each ASR algo process is immediately sent to client.
-                              BUFFERED     - Output of each ASR algo process is buffered and sent to client intermittently.}
+                              BUFFERED     - Output of each ASR algo process is buffered and sent to client intermittently.
+                              LOGGER       - Output of each ASR algo process is buffered and sent to client on demand.}
          @h2xmle_default     {NON_BUFFERED}
-         @h2xmle_rangeList   {"NON_BUFFERED "=0, "BUFFERED"=1} */
-   uint32_t out_buf_size;      // size in bytes of buffer to use in different output modes, primarily in buffered mode
+         @h2xmle_rangeList   {"NON_BUFFERED"=0, "BUFFERED"=1, "LOGGER"=2} */
+   uint32_t out_buf_size;      // size in bytes of buffer to use in different output modes, primarily in buffered and logger mode
     /**< @h2xmle_description {Configuration to specify transcription output buffer size depending on usecase requirement. }
          @h2xmle_default     {} // ASR engine controlled default if not configured
          @h2xmle_range       {0.. 262144} */
@@ -272,7 +294,7 @@ struct param_id_asr_output_config_t
 #include "spf_end_pack.h"
 ;
 
-/*   @h2xml_Select                       {param_id_asr_input_threshold_t}
+/*   @h2xml_Select                 {param_id_asr_input_threshold_t}
      @h2xmlm_InsertParameter */
 
 
@@ -303,7 +325,7 @@ struct event_id_asr_output_reg_cfg_t
 ;
 typedef struct event_id_asr_output_reg_cfg_t event_id_asr_output_reg_cfg_t;
 
-/** ################################ Struct definitions for raised event################### */
+/** ################################ Struct definitions for raised event ################### */
 
 
 #include "spf_begin_pack.h"
@@ -338,10 +360,10 @@ struct asr_output_status_t
 ;
 typedef struct asr_output_status_t asr_output_status_t;
 
-#define PARAM_ID_ASR                  0x08001AA9
+#define PARAM_ID_ASR_LLM                  0x08001AA9
 
 typedef struct asr_model_param_t asr_model_param_t;
-/** @h2xmlp_parameter       {"PARAM_ID_ASR", PARAM_ID_ASR}
+/** @h2xmlp_parameter       {"PARAM_ID_ASR_LLM", PARAM_ID_ASR_LLM}
 	@h2xmlp_description  {NN Model related parameters}
     @h2xmlp_ToolPolicy 	 {CALIBRATION}
     @h2xmlp_isHwAccel {FALSE}
@@ -389,6 +411,7 @@ struct asr_model_param_t
 #include "spf_begin_pack.h"
 #include "spf_begin_pragma.h"
 
+/*TODO: move it to */
 /* Event config to provide the info of getparam vs inband vs both */
 struct event_id_asr_output_event_t
 {
@@ -446,7 +469,7 @@ typedef struct param_id_asr_output_t param_id_asr_output_t;
 struct param_id_asr_output_t
 {
    uint32_t output_token;
-   /**< @h2xmle_description   {Token provided by the AsR engine corresponding to an output.
+   /**< @h2xmle_description   {Token provided by the ASR engine corresponding to an output.
                                This can be used by clients to query the corresponding payload.
                                If not configured or invalid, Payload corresponds to output buffers
                                in sequential order as produced by ASR engine.}
@@ -473,7 +496,7 @@ struct param_id_asr_output_t
 #include "spf_end_pack.h"
 ;
 
-/*   @h2xml_Select                     {param_id_asr_output_t}
+/*   @h2xml_Select                 {param_id_asr_output_t}
      @h2xmlm_InsertParameter */
 
 /** @}                   <-- End of the Module -->*/
