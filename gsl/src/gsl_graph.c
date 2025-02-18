@@ -1256,6 +1256,60 @@ exit:
 	return rc;
 }
 
+static int32_t check_and_register_dynamic_pd(struct gsl_graph *graph,
+	struct gsl_sgid_list *sgids, uint32_t ss_mask, uint32_t *dyn_ss_mask)
+{
+	int32_t i = 0, j = 0, rc = AR_EOK;
+	uint32_t sg_ss_mask = 0;
+	uint32_t tmp_ss_masks[sgids->len];
+
+	GSL_DBG("proc_id %d, num subgraphs %d, ss_mask 0x%x", graph->proc_id, sgids->len, ss_mask);
+	if (ss_mask == (uint32_t) GSL_GET_SPF_SS_MASK(graph->proc_id))
+		return AR_EOK;
+
+	for (i = 0; i < sgids->len; ++i) {
+		gsl_mdf_utils_query_graph_ss_mask(&sgids->sg_ids[i], 1, &sg_ss_mask);
+		GSL_DBG("subgraph: id 0x%x, ss_mask 0x%x", sgids->sg_ids[i], sg_ss_mask);
+		if (sg_ss_mask == GSL_GET_SPF_SS_MASK(graph->proc_id))
+			continue;
+		rc = gsl_mdf_utils_register_dynamic_pd(sg_ss_mask, graph->proc_id, dyn_ss_mask);
+		if (rc) {
+			GSL_ERR("dynamic pd registration failed, status %d", rc);
+			goto err_exit;
+		}
+		tmp_ss_masks[j++] = sg_ss_mask;
+	}
+	return rc;
+
+err_exit:
+	while (j-- > 0)
+		gsl_mdf_utils_deregister_dynamic_pd(tmp_ss_masks[j], graph->proc_id);
+	return rc;
+
+}
+
+static int32_t check_and_deregister_dynamic_pd(struct gsl_graph *graph,
+	struct gsl_sgid_list *sgids)
+{
+	int32_t i = 0, rc = AR_EOK;
+	uint32_t sg_ss_mask = 0;
+
+	GSL_DBG("proc_id %d, num subgraphs %d, ss_mask 0x%x", graph->proc_id, sgids->len, graph->ss_mask);
+	if (graph->ss_mask == (uint32_t) GSL_GET_SPF_SS_MASK(graph->proc_id))
+		return AR_EOK;
+
+	for (i = 0; i < sgids->len; ++i) {
+		gsl_mdf_utils_query_graph_ss_mask(&sgids->sg_ids[i], 1, &sg_ss_mask);
+		GSL_DBG("subgraph: id 0x%x, ss_mask 0x%x", sgids->sg_ids[i], sg_ss_mask);
+		if (sg_ss_mask == GSL_GET_SPF_SS_MASK(graph->proc_id))
+			continue;
+		rc = gsl_mdf_utils_deregister_dynamic_pd(sg_ss_mask, graph->proc_id);
+		if (rc)
+			GSL_ERR("dynamic pd de-init failed, status %d", rc);
+	}
+	return rc;
+}
+
 enum gsl_graph_states gsl_graph_update_state(struct gsl_graph *graph,
 	enum gsl_graph_states new_state)
 {
@@ -2227,6 +2281,8 @@ static int32_t gsl_graph_close_sgids_and_connections(struct gsl_graph *graph,
 
 	gsl_msg_free(&gsl_msg);
 
+	rc = check_and_deregister_dynamic_pd(graph, &sgids);
+
 exit:
 	return rc;
 }
@@ -2796,6 +2852,8 @@ static int32_t gsl_graph_open_sgids_and_connections(struct gsl_graph *graph,
 	struct gsl_sgobj_list sg_obj_list;
 	gsl_msg_t gsl_msg;
 	bool_t is_shmem_supported = TRUE;
+	bool_t dyn_pd_failed = FALSE;
+	uint32_t dyn_ss_mask = 0;
 
 	/* check if there are any sub-graphs or edges to open */
 	if ((sgids->len == 0) && (sg_conn->num_sgs == 0))
@@ -2857,7 +2915,6 @@ static int32_t gsl_graph_open_sgids_and_connections(struct gsl_graph *graph,
 			rc = AR_ENOTREADY;
 			goto free_sg_prop_data;
 		}
-
 		/*
 		 * Allocate and map MDF client loaned memory in-case any of the new sgs
 		 * requires any procs other than ADSP
@@ -2868,8 +2925,22 @@ static int32_t gsl_graph_open_sgids_and_connections(struct gsl_graph *graph,
 			GSL_ERR("GPR is shmem supported failed %d", rc)
 			goto free_sg_prop_data;
 		}
-		if (is_shmem_supported)
-			gsl_mdf_utils_shmem_alloc(gkv_node->spf_ss_mask, graph->proc_id);
+		if (is_shmem_supported) {
+			rc = check_and_register_dynamic_pd(graph, sgids,
+					gkv_node->spf_ss_mask, &dyn_ss_mask);
+			if (rc) {
+				GSL_ERR("dynamic pd create failed, status %d", rc);
+				dyn_pd_failed = TRUE;
+				goto free_sg_prop_data;
+			}
+			/*
+			 * If there was a dynamic PD, the allocation would have happened
+			 * already as part of check_and_register_dynamic_pd.
+			 * Remove dynamic PD from ss mask.
+			 */
+			gsl_mdf_utils_shmem_alloc(gkv_node->spf_ss_mask & ~dyn_ss_mask,
+				graph->proc_id);
+		}
 	}
 
 	/* Get subgraph connection data size for spf */

@@ -396,6 +396,100 @@ int32_t gsl_mdf_utils_shmem_free(void)
 	return rc;
 }
 
+/*
+ * Creates dynamic PD and allocates shared memory.
+ */
+int32_t gsl_mdf_utils_register_dynamic_pd(uint32_t ss_mask,
+	uint32_t master_proc_id,  uint32_t *dyn_ss_mask)
+{
+	int32_t rc = AR_EOK;
+	uint32_t sys_id = AR_SUB_SYS_ID_FIRST, tmp_ss_mask = 0, sm = 0;
+	uint32_t tmp_pd_list[AR_SUB_SYS_ID_LAST] = {0}, pd_cnt = 0;
+
+	if (!dyn_ss_mask)
+		return AR_EBADPARAM;
+	*dyn_ss_mask = 0;
+	tmp_ss_mask = ss_mask;
+	while (tmp_ss_mask) {
+		if (GSL_TEST_SPF_SS_BIT(ss_mask, sys_id)) {
+			if (sys_id == master_proc_id ||
+				!gsl_mdf_utils_is_dynamic_pd(sys_id))
+				goto next;
+
+			*dyn_ss_mask |= GSL_GET_SPF_SS_MASK(sys_id);
+			if (pd_init_ref_cnt[sys_id] == 0) {
+				GSL_DBG("initialize dynamic pd %d", sys_id);
+				rc = ar_osal_dyn_pd_init(sys_id);
+				if (rc) {
+					GSL_ERR("ar_osal_dyn_pd_init failed %d", rc);
+					goto de_init_pd;
+				}
+				++pd_init_ref_cnt[sys_id];
+				tmp_pd_list[pd_cnt++] = sys_id;
+				sm = GSL_GET_SPF_SS_MASK(sys_id) |
+					GSL_GET_SPF_SS_MASK(master_proc_id);
+				rc = gsl_mdf_utils_shmem_alloc(sm, master_proc_id);
+				if (rc != AR_EOK) {
+					GSL_ERR("failed to alloc loaned shmem %d", rc);
+					goto de_init_pd;
+				}
+			} else {
+				++pd_init_ref_cnt[sys_id];
+				tmp_pd_list[pd_cnt++] = sys_id;
+			}
+		}
+	next:
+		++sys_id;
+		tmp_ss_mask >>= 1;
+	}
+	return rc;
+
+de_init_pd:
+	while (pd_cnt > 0) {
+		--pd_cnt;
+		if (pd_init_ref_cnt[tmp_pd_list[pd_cnt]] == 1)
+			ar_osal_dyn_pd_deinit(tmp_pd_list[pd_cnt]);
+		--pd_init_ref_cnt[tmp_pd_list[pd_cnt]];
+	}
+	return rc;
+}
+
+/*
+ * Releases dynamic PD and deallocates shared memory.
+ */
+int32_t gsl_mdf_utils_deregister_dynamic_pd(uint32_t ss_mask,
+	uint32_t master_proc_id)
+{
+	int32_t rc = AR_EOK;
+	uint32_t sys_id = AR_SUB_SYS_ID_FIRST, tmp_ss_mask = 0, sm = 0;
+	uint32_t tmp_pd_list[AR_SUB_SYS_ID_LAST] = {0}, pd_cnt = 0;
+
+	tmp_ss_mask = ss_mask;
+	while (tmp_ss_mask) {
+		if (GSL_TEST_SPF_SS_BIT(ss_mask, sys_id)) {
+			if (sys_id == master_proc_id ||
+				!gsl_mdf_utils_is_dynamic_pd(sys_id)) {
+				goto next;
+			}
+			if (pd_init_ref_cnt[sys_id] == 1) {
+				sm = GSL_GET_SPF_SS_MASK(sys_id) |
+					GSL_GET_SPF_SS_MASK(master_proc_id);
+				rc = gsl_mdf_utils_shmem_free(sm);
+				if (rc != AR_EOK)
+					GSL_ERR("failed to free loaned shmem %d", rc);
+				GSL_DBG("deinitialize dynamic pd %d", sys_id);
+				ar_osal_dyn_pd_deinit(sys_id);
+			}
+			if (pd_init_ref_cnt[sys_id] > 0)
+				--pd_init_ref_cnt[sys_id];
+		}
+	next:
+		++sys_id;
+		tmp_ss_mask >>= 1;
+	}
+	return rc;
+}
+
 int32_t gsl_mdf_utils_init(void)
 {
 	if (!is_initialized) {

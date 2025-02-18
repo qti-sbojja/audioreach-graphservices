@@ -158,6 +158,33 @@ int32_t gsl_mdf_utils_shmem_alloc(uint32_t ss_mask, uint32_t master_proc);
 void gsl_mdf_utils_notify_ss_restarted(uint32_t restarted_ss_mask);
 
 /*
+ * \brief frees or unmap the mdf shmem for all ss groups.
+ *
+ *  \param[in] ss_mask: mask representing the set of subsystems for which to
+ * de-allocate or un map the shared loaned memory
+ */
+int32_t gsl_mdf_utils_shmem_free(uint32_t ss_mask);
+
+/*
+ * \brief Creates dynamic PD and allocates shared memory for given
+ * subsystems
+ *
+ * \param[in] ss_mask: mask representing the subsystems
+ * \param[in] master_proc_id: Master proc id
+ */
+int32_t gsl_mdf_utils_register_dynamic_pd(uint32_t ss_mask,
+	uint32_t master_proc_id,  uint32_t *dyn_ss_mask);
+
+/*
+ * \brief Releases dynamic PD and deallocates shared memory for given
+ * subsystems
+ * \param[in] ss_mask: mask representing the subsystems
+ * \param[in] master_proc_id: Master proc id
+ */
+int32_t gsl_mdf_utils_deregister_dynamic_pd(uint32_t ss_mask,
+	uint32_t master_proc_id);
+
+/*
  * \brief initialize MDF utils, internally queries ACDB to get supported SS info
  *
  */
