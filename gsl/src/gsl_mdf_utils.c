@@ -334,6 +334,22 @@ int32_t gsl_mdf_utils_shmem_alloc(uint32_t ss_mask, uint32_t master_proc)
 				 */
 				ss_mask &= ~grp->ss_mask;
 			}
+			/*
+			* If a group contains both dynamic and static dynamic pds,
+			* the loaned memory already gets allocated at boot up but the
+			* mapping for dynamic pd gets skipped as dynamic pd is created
+			* and released during use case boundary. Check and map memory
+			* for dynamic pd.
+			*/
+			tmp_ss_mask = grp->ss_mask & ss_mask;
+			if (tmp_ss_mask) {
+				GSL_DBG("map dyn pd loaned mem, ss_mask 0x%x", tmp_ss_mask);
+				rc = gsl_shmem_map_dynamic_pd(&grp->loaned_mem,
+					GSL_SHMEM_LOANED, tmp_ss_mask, grp->master_proc);
+				if (rc != AR_EOK)
+					goto exit;
+			}
+			ss_mask &= ~tmp_ss_mask;
 			continue;
 		}
 
@@ -343,7 +359,8 @@ int32_t gsl_mdf_utils_shmem_alloc(uint32_t ss_mask, uint32_t master_proc)
 		 * a ss can appear in only one group)
 		 */
 		if (tmp_ss_mask) {
-			rc = gsl_shmem_alloc_ext(grp->loaned_mem_sz, grp->ss_mask,
+			GSL_DBG("Allocate loaned memory, ss_mask 0x%x", tmp_ss_mask);
+			rc = gsl_shmem_alloc_ext(grp->loaned_mem_sz, tmp_ss_mask,
 				GSL_SHMEM_LOANED, 0, grp->master_proc, &grp->loaned_mem);
 			if (rc != AR_EOK) {
 				GSL_ERR("shmem alloc failed %d", rc);
@@ -385,11 +402,29 @@ int32_t gsl_mdf_utils_shmem_free(void)
 	for (i = 0; i < _gsl_glb_mdf_info.num_ss_groups; ++i) {
 		grp = &_gsl_glb_mdf_info.ss_groups[i];
 		if (grp->loaned_mem.handle) {
-			rc = gsl_shmem_free(&grp->loaned_mem);
-			if (rc == AR_EOK)
-				grp->loaned_mem.handle = NULL;
-			else
-				GSL_ERR("shmem free failed %d", rc);
+			if (ss_mask == AR_SUB_SYS_IDS_MASK ||
+				gsl_shmem_get_mapped_ss_mask(&grp->loaned_mem) == ss_mask) {
+				GSL_DBG("free loaned memory, ss_mask 0x%x", ss_mask);
+				rc = gsl_shmem_free(&grp->loaned_mem);
+				if (rc == AR_EOK)
+					grp->loaned_mem.handle = NULL;
+				else
+					GSL_ERR("shmem free failed %d", rc);
+			} else {
+				/*
+				 * if both static and dynamic pd are present,
+				 * unmap dynamic pd memory.
+				 */
+				tmp_ss_mask = grp->ss_mask & ss_mask;
+				if (tmp_ss_mask) {
+					GSL_DBG("unmap dyn pd loaned mem, ss_mask 0x%x", tmp_ss_mask);
+					gsl_shmem_unmap_dynamic_pd(&grp->loaned_mem,
+						tmp_ss_mask, grp->master_proc);
+				}
+				ss_mask &= ~tmp_ss_mask;
+				if (!ss_mask)
+					break;
+			}
 		}
 	}
 
@@ -400,7 +435,8 @@ int32_t gsl_mdf_utils_shmem_free(void)
  * Creates dynamic PD and allocates shared memory.
  */
 int32_t gsl_mdf_utils_register_dynamic_pd(uint32_t ss_mask,
-	uint32_t master_proc_id,  uint32_t *dyn_ss_mask)
+	uint32_t master_proc_id, uint32_t src_port,
+	struct gsl_signal *sig, uint32_t *dyn_ss_mask)
 {
 	int32_t rc = AR_EOK;
 	uint32_t sys_id = AR_SUB_SYS_ID_FIRST, tmp_ss_mask = 0, sm = 0;
@@ -431,6 +467,14 @@ int32_t gsl_mdf_utils_register_dynamic_pd(uint32_t ss_mask,
 				rc = gsl_mdf_utils_shmem_alloc(sm, master_proc_id);
 				if (rc != AR_EOK) {
 					GSL_ERR("failed to alloc loaned shmem %d", rc);
+					goto de_init_pd;
+				}
+				GSL_DBG("send spf satellite info, ss_mask 0x%x", sm);
+				rc = gsl_send_spf_satellite_info(master_proc_id, sm, src_port, sig);
+				if (rc != AR_EOK) {
+					GSL_ERR("failed to send satellite info, error %d, ss_mask 0x%x",
+						rc, ss_mask);
+					gsl_mdf_utils_shmem_free(sm);
 					goto de_init_pd;
 				}
 			} else {

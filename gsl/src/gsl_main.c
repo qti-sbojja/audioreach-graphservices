@@ -769,79 +769,6 @@ exit:
 	return rc;
 }
 
-static int32_t gsl_send_spf_satellite_info(uint32_t proc_id,
-					   uint32_t supported_ss_mask)
-{
-	uint32_t i = 0, j = 0;
-	gpr_cmd_alloc_ext_t gpr_args;
-	int32_t rc = AR_EOK;
-	gpr_packet_t *send_pkt = NULL;
-	apm_cmd_header_t *apm_hdr;
-	apm_param_id_satellite_pd_info_t *sat_pd_info;
-	apm_module_param_data_t *param_hdr;
-
-	gpr_args.src_domain_id = GPR_IDS_DOMAIN_ID_APPS_V;
-	gpr_args.dst_domain_id = (uint8_t) proc_id;
-	gpr_args.src_port = GSL_MAIN_SRC_PORT;
-	gpr_args.dst_port = APM_MODULE_INSTANCE_ID;
-	gpr_args.opcode = APM_CMD_SET_CFG;
-	gpr_args.token = 0;
-	gpr_args.client_data = 0;
-	gpr_args.ret_packet = &send_pkt;
-	/* below allocate for worst case since payload size is small enough */
-	gpr_args.payload_size = sizeof(apm_cmd_header_t)
-		+ sizeof(apm_module_param_data_t)
-		+ sizeof(apm_param_id_satellite_pd_info_t)
-		+ ((AR_SUB_SYS_ID_LAST + 1) * sizeof(uint32_t));
-
-	rc = __gpr_cmd_alloc_ext(&gpr_args);
-	if (rc) {
-		GSL_ERR("Failed to allocate gpr pkt %d", rc);
-		goto exit;
-	}
-
-	apm_hdr = GPR_PKT_GET_PAYLOAD(apm_cmd_header_t, send_pkt);
-	apm_hdr->mem_map_handle = 0;
-	apm_hdr->payload_address_lsw = 0;
-	apm_hdr->payload_address_msw = 0;
-	apm_hdr->payload_size = sizeof(apm_module_param_data_t)
-		+ sizeof(apm_param_id_satellite_pd_info_t)
-		+ ((AR_SUB_SYS_ID_LAST + 1) * sizeof(uint32_t));
-
-	param_hdr = (apm_module_param_data_t *)(apm_hdr + 1);
-	param_hdr->module_instance_id = APM_MODULE_INSTANCE_ID;
-	param_hdr->param_id = APM_PARAM_ID_SATELLITE_PD_INFO;
-	param_hdr->param_size = sizeof(apm_param_id_satellite_pd_info_t)
-		+ ((AR_SUB_SYS_ID_LAST + 1) * sizeof(uint32_t));
-	param_hdr->error_code = 0;
-
-	sat_pd_info = (apm_param_id_satellite_pd_info_t *)(param_hdr + 1);
-
-	/*
-	 * disable ADSP from the bitmask for now as we assume master is on
-	 * ADSP. This can be revisited in the future once we add support for
-	 * multiple masters
-	 */
-	supported_ss_mask &= ~proc_id;
-	for (i = AR_SUB_SYS_ID_FIRST; i <= AR_SUB_SYS_ID_LAST; ++i) {
-		if (GSL_TEST_SPF_SS_BIT(supported_ss_mask, i))
-			sat_pd_info->proc_domain_id_list[j++] = i;
-	}
-
-	sat_pd_info->num_proc_domain_ids = j;
-	if (sat_pd_info->num_proc_domain_ids > 0) {
-		GSL_LOG_PKT("send_pkt", GSL_MAIN_SRC_PORT, send_pkt, sizeof(*send_pkt)
-			+ gpr_args.payload_size, NULL, 0);
-
-		rc = gsl_send_spf_cmd_wait_for_basic_rsp(&send_pkt,
-			&gsl_ctxt.rsp_signal);
-		if (rc)
-			GSL_ERR("failed to send spf satellite info rc %d", rc);
-	}
-exit:
-	return rc;
-}
-
 int32_t gsl_get_driver_data(const uint32_t module_id,
 	const struct gsl_key_vector *key_vect, void *data_payload,
 	uint32_t *data_payload_size)
@@ -1072,7 +999,7 @@ int32_t gsl_init(struct gsl_init_data *init_data)
 							&supported_ss_mask);
 
 		rc = gsl_send_spf_satellite_info(master_procs[i],
-						 supported_ss_mask);
+			supported_ss_mask, GSL_MAIN_SRC_PORT, &gsl_ctxt.rsp_signal);
 		if (rc) {
 			GSL_ERR("gsl_send_spf_satellite_info failed %d", rc);
 			goto mdf_utils_deinit;
@@ -1300,7 +1227,8 @@ int32_t gsl_open(const struct gsl_key_vector *graph_key_vect,
 			gsl_shmem_remap_pre_alloc(i);
 			gsl_mdf_utils_get_supported_ss_info_from_master_proc(i, &supported_ss_mask);
 			// open_close_lock will be acquired insides
-			rc = gsl_send_spf_satellite_info(i, supported_ss_mask);
+			rc = gsl_send_spf_satellite_info(i, supported_ss_mask,
+				GSL_MAIN_SRC_PORT, &gsl_ctxt.rsp_signal);
 			if (rc) {
 				GSL_ERR("gsl_send_spf_satellite_info failed for master_proc %d rc %d", i, rc);
 				continue;

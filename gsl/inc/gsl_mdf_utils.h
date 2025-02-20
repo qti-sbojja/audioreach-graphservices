@@ -15,6 +15,7 @@
   * @h2xml_title_date {08/01/2018}
   */
  #include "ar_osal_types.h"
+ #include "gsl_common.h"
 
 #define GSL_MULTI_DSP_FWK_DATA_MID 0x2005
 
@@ -173,7 +174,8 @@ int32_t gsl_mdf_utils_shmem_free(uint32_t ss_mask);
  * \param[in] master_proc_id: Master proc id
  */
 int32_t gsl_mdf_utils_register_dynamic_pd(uint32_t ss_mask,
-	uint32_t master_proc_id,  uint32_t *dyn_ss_mask);
+	uint32_t master_proc_id, uint32_t src_port,
+	struct gsl_signal *sig, uint32_t *dyn_ss_mask);
 
 /*
  * \brief Releases dynamic PD and deallocates shared memory for given

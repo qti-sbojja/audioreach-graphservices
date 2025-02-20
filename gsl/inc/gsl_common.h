@@ -293,7 +293,8 @@ int32_t gsl_send_spf_cmd(struct gpr_packet_t **packet,
 	struct gsl_signal *sig_p, gpr_packet_t **rsp_pkt);
 int32_t gsl_send_spf_cmd_wait_for_basic_rsp(gpr_packet_t **packet,
 	struct gsl_signal *sig_p);
-
+int32_t gsl_send_spf_satellite_info(uint32_t proc_id,
+	uint32_t supported_ss_mask, uint32_t src_port, struct gsl_signal *sig_p);
 
 /** memory allocation helper functions */
 static inline void *gsl_mem_zalloc(size_t size)

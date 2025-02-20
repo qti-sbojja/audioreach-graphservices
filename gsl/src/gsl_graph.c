@@ -1272,7 +1272,8 @@ static int32_t check_and_register_dynamic_pd(struct gsl_graph *graph,
 		GSL_DBG("subgraph: id 0x%x, ss_mask 0x%x", sgids->sg_ids[i], sg_ss_mask);
 		if (sg_ss_mask == GSL_GET_SPF_SS_MASK(graph->proc_id))
 			continue;
-		rc = gsl_mdf_utils_register_dynamic_pd(sg_ss_mask, graph->proc_id, dyn_ss_mask);
+		rc = gsl_mdf_utils_register_dynamic_pd(sg_ss_mask, graph->proc_id, graph->src_port,
+			&graph->graph_signal[GRAPH_CTRL_GRP2_CMD_SIG], dyn_ss_mask);
 		if (rc) {
 			GSL_ERR("dynamic pd registration failed, status %d", rc);
 			goto err_exit;
