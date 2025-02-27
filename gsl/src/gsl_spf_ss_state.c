@@ -86,9 +86,8 @@ static void servreg_callback(ar_osal_servreg_t servreg_handle,
 	uint32_t ss_mask = 0;
 	uint32_t master_proc = AR_SUB_SYS_ID_INVALID;
 	uint32_t proc_id = AR_SUB_SYS_ID_INVALID;
-	uint32_t num_procs = 0;
-	struct proc_domain_type *proc_domains = NULL;
-
+	uint32_t sys_id = AR_SUB_SYS_ID_FIRST;
+	uint32_t supported_ss_mask = 0, tmp_ss_mask = 0;
 	/*
 	 * reference unused variables to make compiler happy. Can't change function
 	 * signature because it needs to match what OSAL expects.
@@ -134,18 +133,12 @@ static void servreg_callback(ar_osal_servreg_t servreg_handle,
 					return;
 			}
 			gsl_spf_ss_state_set(master_proc, ss_mask, GSL_SPF_SS_STATE_DN);
-			/* For dynamic PD down notification, restart master proc */
-			gsl_mdf_utils_get_proc_domain_info(&proc_domains, &num_procs);
-			if (!proc_domains)
-				num_procs = 0;
-			for (int i = 0; i < num_procs; i++) {
-				if (proc_domains[i].proc_id == proc_id &&
-					proc_domains[i].proc_type == DYNAMIC_PD) {
-					ar_osal_servreg_restart_service(
-						servreg_handle_list->handles[master_proc]);
-					return;
-				}
-			}
+			/*
+			 * For dynamic PD down notification, restart master proc.
+			 * PD down notification can also be sent for normal PD close
+			 * as part of PD deinitialization. Check and ignore notification
+			 * for such case.
+			 */
 			/* notify gsl_main */
 			_spf_cluster_ss_state[master_proc]->ssr_cb(GSL_SPF_SS_STATE_DN,
 								   ss_mask);
