@@ -53,9 +53,38 @@ struct gsl_mdf_info {
 	 * master proc mask
 	 */
 	uint32_t master_proc_mask;
-} _gsl_glb_mdf_info = {0, NULL, 0};
+	/* number of subsystems */
+	uint32_t num_procs;
+	/* susbystems domain type information */
+	struct proc_domain_type *pd_info;
+	/* dynamic pd reference count */
+	uint32_t pd_init_ref_cnt[AR_SUB_SYS_ID_LAST];
+	/* dynamic pd deinit pending used to skip PD DOWN treated as crash */
+	bool_t pd_deinit_pending[AR_SUB_SYS_ID_LAST];
+
+} _gsl_glb_mdf_info = {0, NULL, 0, 0, NULL, {0}, {FALSE}};
 
 static bool_t is_initialized = FALSE;
+
+bool_t gsl_mdf_utils_is_dynamic_pd(uint32_t proc_id)
+{
+	uint32_t i = 0;
+
+	for (i = 0; i < _gsl_glb_mdf_info.num_procs; ++i) {
+		if (_gsl_glb_mdf_info.pd_info[i].proc_id == proc_id &&
+			_gsl_glb_mdf_info.pd_info[i].proc_type == DYNAMIC_PD)
+				return TRUE;
+	}
+	return FALSE;
+}
+
+bool_t gsl_mdf_utils_is_dynamic_pd_deinit_pending(uint32_t proc_id)
+{
+	if (proc_id < AR_SUB_SYS_ID_FIRST || proc_id > AR_SUB_SYS_ID_LAST)
+		return FALSE;
+
+	return _gsl_glb_mdf_info.pd_deinit_pending[proc_id];
+}
 
 uint32_t gsl_mdf_utils_query_graph_ss_mask(uint32_t *sg_id_list,
 	uint32_t num_sgs, uint32_t *ss_mask)
@@ -453,17 +482,18 @@ int32_t gsl_mdf_utils_register_dynamic_pd(uint32_t ss_mask,
 				goto next;
 
 			*dyn_ss_mask |= GSL_GET_SPF_SS_MASK(sys_id);
-			if (pd_init_ref_cnt[sys_id] == 0) {
+			if (_gsl_glb_mdf_info.pd_init_ref_cnt[sys_id] == 0) {
 				GSL_DBG("initialize dynamic pd %d", sys_id);
 				rc = ar_osal_dyn_pd_init(sys_id);
 				if (rc) {
 					GSL_ERR("ar_osal_dyn_pd_init failed %d", rc);
 					goto de_init_pd;
 				}
-				++pd_init_ref_cnt[sys_id];
+				++_gsl_glb_mdf_info.pd_init_ref_cnt[sys_id];
 				tmp_pd_list[pd_cnt++] = sys_id;
 				sm = GSL_GET_SPF_SS_MASK(sys_id) |
 					GSL_GET_SPF_SS_MASK(master_proc_id);
+				GSL_DBG("Allocate memory ss_mask 0x%x", sm);
 				rc = gsl_mdf_utils_shmem_alloc(sm, master_proc_id);
 				if (rc != AR_EOK) {
 					GSL_ERR("failed to alloc loaned shmem %d", rc);
@@ -478,7 +508,7 @@ int32_t gsl_mdf_utils_register_dynamic_pd(uint32_t ss_mask,
 					goto de_init_pd;
 				}
 			} else {
-				++pd_init_ref_cnt[sys_id];
+				++_gsl_glb_mdf_info.pd_init_ref_cnt[sys_id];
 				tmp_pd_list[pd_cnt++] = sys_id;
 			}
 		}
@@ -491,9 +521,9 @@ int32_t gsl_mdf_utils_register_dynamic_pd(uint32_t ss_mask,
 de_init_pd:
 	while (pd_cnt > 0) {
 		--pd_cnt;
-		if (pd_init_ref_cnt[tmp_pd_list[pd_cnt]] == 1)
+		if (_gsl_glb_mdf_info.pd_init_ref_cnt[tmp_pd_list[pd_cnt]] == 1)
 			ar_osal_dyn_pd_deinit(tmp_pd_list[pd_cnt]);
-		--pd_init_ref_cnt[tmp_pd_list[pd_cnt]];
+		--_gsl_glb_mdf_info.pd_init_ref_cnt[tmp_pd_list[pd_cnt]];
 	}
 	return rc;
 }
@@ -515,17 +545,20 @@ int32_t gsl_mdf_utils_deregister_dynamic_pd(uint32_t ss_mask,
 				!gsl_mdf_utils_is_dynamic_pd(sys_id)) {
 				goto next;
 			}
-			if (pd_init_ref_cnt[sys_id] == 1) {
+			if (_gsl_glb_mdf_info.pd_init_ref_cnt[sys_id] == 1) {
 				sm = GSL_GET_SPF_SS_MASK(sys_id) |
 					GSL_GET_SPF_SS_MASK(master_proc_id);
+				GSL_DBG("Free memory ss_mask 0x%x", sm);
 				rc = gsl_mdf_utils_shmem_free(sm);
 				if (rc != AR_EOK)
 					GSL_ERR("failed to free loaned shmem %d", rc);
 				GSL_DBG("deinitialize dynamic pd %d", sys_id);
+				_gsl_glb_mdf_info.pd_deinit_pending[sys_id] = TRUE;
 				ar_osal_dyn_pd_deinit(sys_id);
+				_gsl_glb_mdf_info.pd_deinit_pending[sys_id] = FALSE;
 			}
-			if (pd_init_ref_cnt[sys_id] > 0)
-				--pd_init_ref_cnt[sys_id];
+			if (_gsl_glb_mdf_info.pd_init_ref_cnt[sys_id] > 0)
+				--_gsl_glb_mdf_info.pd_init_ref_cnt[sys_id];
 		}
 	next:
 		++sys_id;

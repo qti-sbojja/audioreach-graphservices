@@ -1198,6 +1198,8 @@ int32_t gsl_open(const struct gsl_key_vector *graph_key_vect,
 	struct gsl_graph *graph = NULL;
 	gsl_handle_t hdl = 0;
 	uint32_t supported_ss_mask = 0;
+	uint32_t num_procs = 0;
+	struct proc_domain_type *proc_domains = NULL;
 	bool_t is_shmem_supported = TRUE;
 	uint8_t i = 0;
 	int32_t ss_retry_count = 10;
@@ -1226,6 +1228,14 @@ int32_t gsl_open(const struct gsl_key_vector *graph_key_vect,
 			// handle master proc restarting
 			gsl_shmem_remap_pre_alloc(i);
 			gsl_mdf_utils_get_supported_ss_info_from_master_proc(i, &supported_ss_mask);
+			gsl_mdf_utils_get_proc_domain_info(&proc_domains, &num_procs);
+			if (!proc_domains)
+				num_procs = 0;
+			/* Reset dynamic PD mask. It will be handled after dynamic PD is initialized. */
+			for (j = 0; j < num_procs; ++j) {
+				if (proc_domains[j].proc_type == DYNAMIC_PD)
+					supported_ss_mask &= ~(GSL_GET_SPF_SS_MASK(proc_domains[j].proc_id));
+			}
 			// open_close_lock will be acquired insides
 			rc = gsl_send_spf_satellite_info(i, supported_ss_mask,
 				GSL_MAIN_SRC_PORT, &gsl_ctxt.rsp_signal);

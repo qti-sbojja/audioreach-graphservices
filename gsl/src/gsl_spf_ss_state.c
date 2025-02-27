@@ -22,6 +22,7 @@
 
 #define GSL_AUDIO_PD_DOMAIN_STR "msm/adsp/audio_pd"
 #define GSL_COMPUTE_PD_DOMAIN_STR "msm/cdsp/audio_pd"
+#define GSL_COMPUTE_ROOT_PD_DOMAIN_STR "msm/cdsp/root_pd"
 #define GSL_MODEM_PD_DOMAIN_STR "msm/mdsp/audio_pd"
 #define GSL_SENSOR_PD_DOMAIN_STR "msm/sdsp/audio_pd"
 #define GSL_AUDIO_PD_SERVICE_STR "avs/audio"
@@ -66,7 +67,8 @@ static uint32_t gsl_find_proc_id_from_name(char_t *name)
 
 	if (!strcmp(name, GSL_AUDIO_PD_DOMAIN_STR))
 		proc_id = AR_AUDIO_DSP;
-	else if (!strcmp(name, GSL_COMPUTE_PD_DOMAIN_STR))
+	else if (!strcmp(name, GSL_COMPUTE_PD_DOMAIN_STR) ||
+			!strcmp(name, GSL_COMPUTE_ROOT_PD_DOMAIN_STR))
 		proc_id = AR_COMPUTE_DSP;
 	else if (!strcmp(name, GSL_MODEM_PD_DOMAIN_STR))
 		proc_id = AR_MODEM_DSP;
@@ -83,7 +85,8 @@ static void servreg_callback(ar_osal_servreg_t servreg_handle,
 	uint32_t ss_mask = 0;
 	uint32_t master_proc = AR_SUB_SYS_ID_INVALID;
 	uint32_t proc_id = AR_SUB_SYS_ID_INVALID;
-
+	uint32_t sys_id = AR_SUB_SYS_ID_FIRST;
+	uint32_t supported_ss_mask = 0, tmp_ss_mask = 0;
 	/*
 	 * reference unused variables to make compiler happy. Can't change function
 	 * signature because it needs to match what OSAL expects.
@@ -111,14 +114,56 @@ static void servreg_callback(ar_osal_servreg_t servreg_handle,
 			return;
 		}
 		if (serv_ntfy_pld->service_state == AR_OSAL_SERVICE_STATE_DOWN) {
+			GSL_INFO("AR_OSAL_SERVICE_STATE_DOWN proc_id %d", proc_id);
 			/* update the global Spf SS state */
 			gsl_spf_ss_state_set(master_proc, ss_mask, GSL_SPF_SS_STATE_DN);
+			/*
+			 * For dynamic PD down notification, restart master proc.
+			 * PD down notification can also be sent for normal PD close
+			 * as part of PD deinitialization. Check and ignore notification
+			 * for such case.
+			 */
+			if (gsl_mdf_utils_is_dynamic_pd(proc_id)) {
+				if (!gsl_mdf_utils_is_dynamic_pd_deinit_pending(proc_id)) {
+					GSL_INFO("Restart master proc %d for dynamic pd %d crash",
+						master_proc, proc_id);
+					ar_osal_servreg_restart_service(
+						servreg_handle_list->handles[master_proc]);
+				}
+					return;
+			}
 			/* notify gsl_main */
 			_spf_cluster_ss_state[master_proc]->ssr_cb(GSL_SPF_SS_STATE_DN,
 								   ss_mask);
-		} else if (serv_ntfy_pld->service_state ==
-			AR_OSAL_SERVICE_STATE_UP) {
+		} else if (serv_ntfy_pld->service_state == AR_OSAL_SERVICE_STATE_UP) {
+			GSL_INFO("AR_OSAL_SERVICE_STATE_UP proc_id %d", proc_id);
+			if (gsl_mdf_utils_is_dynamic_pd(proc_id)) {
+				/* PD up notification can also be sent when PD is loaded part of
+				 * normal pd initialization. Skip SSR callback notification.
+				 */
+				gsl_spf_ss_state_set(master_proc, ss_mask, GSL_SPF_SS_STATE_UP);
+				return;
+			}
+			if (gsl_mdf_utils_is_master_proc(ss_mask)) {
+				/*
+				 * If there is an associated dynamic PD satellite add it to
+				 * ss_mask as up, since dynamic PD crash would have forced this
+				 * master proc restart.
+				 */
+				gsl_mdf_utils_get_supported_ss_info_from_master_proc(master_proc,
+					&supported_ss_mask);
+				tmp_ss_mask = supported_ss_mask;
+				while (tmp_ss_mask && (sys_id <= AR_SUB_SYS_ID_LAST)) {
+					if (GSL_TEST_SPF_SS_BIT(supported_ss_mask, sys_id) &&
+						gsl_mdf_utils_is_dynamic_pd(sys_id)) {
+							ss_mask |= GSL_GET_SPF_SS_MASK(sys_id);
+					}
+					++sys_id;
+					tmp_ss_mask >>= 1;
+				}
+			}
 			/* update the global Spf SS state */
+			GSL_DBG("set ss state with ss_mask 0x%x", ss_mask);
 			 gsl_spf_ss_state_set(master_proc, ss_mask, GSL_SPF_SS_STATE_UP);
 			/* notify gsl_main */
 			_spf_cluster_ss_state[master_proc]->ssr_cb(GSL_SPF_SS_STATE_UP,
@@ -177,7 +222,8 @@ static uint32_t gsl_servreg_setup(void)
 	/* scan through domain list and register for notification */
 	for (i = 0; i < domain_list_size; ++i) {
 		proc_id = gsl_find_proc_id_from_name(domain_list[i].name);
-
+		if (proc_id == AR_SUB_SYS_ID_INVALID)
+			continue;
 		servreg_handle = ar_osal_servreg_register(AR_OSAL_CLIENT_LISTENER,
 						servreg_callback, _spf_cluster_ss_state[proc_id],
 						domain_list + i, &service);

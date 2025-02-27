@@ -187,6 +187,20 @@ int32_t gsl_mdf_utils_deregister_dynamic_pd(uint32_t ss_mask,
 	uint32_t master_proc_id);
 
 /*
+ * \brief Check if the given subsystem is of dynamic PD type
+ * \param[in] sys_id: proc id
+ * \return TRUE if dynamic PD, FALSE otherwise.
+ */
+bool_t gsl_mdf_utils_is_dynamic_pd(uint32_t proc_id);
+
+/*
+ * \brief Check if dynamic PD deinit is pending for a given subsystem
+ * \param[in] sys_id: proc id
+ * \return TRUE if pending, FALSE otherwise.
+ */
+bool_t gsl_mdf_utils_is_dynamic_pd_deinit_pending(uint32_t proc_id);
+
+/*
  * \brief initialize MDF utils, internally queries ACDB to get supported SS info
  *
  */
