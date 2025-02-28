@@ -597,8 +597,19 @@ static int32_t allocate_page(uint32_t page_size, uint32_t bin_idx,
 	page->shmem_info.sys_id = page->ss_id_list;
 	/* populate ss_id_list based on spf_ss_mask */
 	while (tmp_spf_ss_mask) {
-		if (GSL_TEST_SPF_SS_BIT(spf_ss_mask, sys_id))
-			page->ss_id_list[page->shmem_info.num_sys_id++] = sys_id;
+		if (GSL_TEST_SPF_SS_BIT(spf_ss_mask, sys_id)) {
+			page->ss_id_list[page->shmem_info.num_sys_id].proc_id = sys_id;
+			if (GSL_TEST_SPF_SS_BIT(dynamic_proc_ss_mask, sys_id)) {
+				page->ss_id_list[page->shmem_info.num_sys_id].proc_type =
+					DYNAMIC_PD;
+				page->ss_id_list[page->shmem_info.num_sys_id].is_active =
+					TRUE;
+			} else {
+				page->ss_id_list[page->shmem_info.num_sys_id].proc_type =
+					STATIC_PD;
+			}
+			++page->shmem_info.num_sys_id;
+		}
 		++sys_id;
 		tmp_spf_ss_mask >>= 1;
 	}
@@ -700,6 +711,7 @@ static int32_t free_page(int32_t bin_idx,
 {
 	int32_t rc = AR_EOK, rc1 = AR_EOK;
 	uint32_t master_proc_id = page->master_proc;
+	uint32_t sys_id = AR_SUB_SYS_ID_FIRST;
 	struct gsl_shmem_bin *bin = &ctxt[master_proc_id]->bins[bin_idx];
 
 	rc = gsl_shmem_unmap_page_from_spf(page, page->spf_ss_mask);
@@ -707,7 +719,22 @@ static int32_t free_page(int32_t bin_idx,
 		GSL_ERR("failed to unmap page from spf %d", rc);
 		rc1 = rc;
 	}
-
+	/*
+	 * Dynamic pd DSP unmap happens in OSAL. If this page is getting
+	 * freed during pd is down, indicate OSAL to skip sending unmap
+	 * command to DSP.
+	 */
+	if ((gsl_spf_ss_state_get(master_proc_id) & page->spf_ss_mask) !=
+		page->spf_ss_mask) {
+		while (sys_id < AR_SUB_SYS_ID_LAST) {
+			if (page->ss_id_list[sys_id].proc_type == DYNAMIC_PD) {
+				GSL_DBG("set pd down flag for proc_id %d",
+					page->ss_id_list[sys_id].proc_id);
+				page->ss_id_list[sys_id].is_active = FALSE;
+			}
+			++sys_id;
+		}
+	}
 	/* if this is a CMA page, hyp-unassign here */
 	if ((page->shmem_info.flags & (AR_SHMEM_BIT_MASK_HW_ACCELERATOR_FLAG
 		<< AR_SHMEM_SHIFT_HW_ACCELERATOR_FLAG)) != 0)
@@ -1225,6 +1252,169 @@ uint32_t gsl_shmem_map_allocation(const struct gsl_shmem_alloc_data *alloc_data,
 	}
 
 	return rc;
+}
+
+int32_t gsl_shmem_map_allocation(const struct gsl_shmem_alloc_data *alloc_data,
+	uint32_t flags, uint32_t ss_mask_to_map_to, uint32_t master_proc_id)
+{
+	int32_t rc = AR_EBADPARAM;
+	struct gsl_shmem_page *page = NULL;
+
+	if (!ctxt[master_proc_id] || !alloc_data)
+		return AR_EUNSUPPORTED;
+
+	page = (struct gsl_shmem_page *)alloc_data->handle;
+	rc = ar_shmem_map(&page->shmem_info);
+	if (rc) {
+		GSL_ERR("shmem_map is failed %d", rc);
+		return rc;
+	}
+	rc = gsl_shmem_map_page_to_spf(page, flags, ss_mask_to_map_to);
+	if (rc) {
+		GSL_ERR("gsl_shmem_map_page_to_spf is failed %d", rc);
+		ar_shmem_unmap(&page->shmem_info);
+	}
+	return rc;
+}
+
+int32_t gsl_shmem_map_dynamic_pd(struct gsl_shmem_alloc_data *alloc_data,
+	uint32_t flags, uint32_t ss_mask, uint32_t master_proc_id)
+{
+	int32_t rc = 0;
+	uint32_t dyn_ss_mask = 0;
+	uint32_t num_sys_id = 0, sys_id = AR_SUB_SYS_ID_FIRST;
+	uint32_t dyn_pd_list[AR_SUB_SYS_ID_LAST], dyn_pd_cnt = 0;
+	ar_shmem_proc_info ss_id_list[AR_SUB_SYS_ID_LAST];
+	struct gsl_shmem_page *page = NULL;
+
+	if (!ctxt[master_proc_id] || !alloc_data)
+		return AR_EBADPARAM;
+
+	page = alloc_data->handle;
+	/*
+	 * The page spf_ss_mask contains the mapped pds,
+	 * check and skip mapping for those.
+	 */
+	ss_mask &= ~GSL_GET_SPF_SS_MASK(master_proc_id);
+	ss_mask &= ~page->spf_ss_mask;
+	if (!ss_mask)
+		return rc;
+
+	/* back up ss_id_list to restore after mapping dynamic pd */
+	gsl_memcpy(ss_id_list, sizeof(ss_id_list), page->ss_id_list,
+		page->shmem_info.num_sys_id * sizeof(ar_shmem_proc_info));
+	num_sys_id = page->shmem_info.num_sys_id;
+	page->shmem_info.num_sys_id = 0;
+	dyn_pd_cnt = 0;
+	dyn_ss_mask = ss_mask;
+	while (dyn_ss_mask) {
+		if (GSL_TEST_SPF_SS_BIT(ss_mask, sys_id)) {
+			page->ss_id_list[page->shmem_info.num_sys_id].proc_id =
+				sys_id;
+			page->ss_id_list[page->shmem_info.num_sys_id].proc_type =
+				DYNAMIC_PD;
+			page->ss_id_list[page->shmem_info.num_sys_id++].is_active =
+				TRUE;
+			dyn_pd_list[dyn_pd_cnt++] = sys_id;
+		}
+		++sys_id;
+		dyn_ss_mask >>= 1;
+	}
+
+	rc = gsl_shmem_map_allocation(alloc_data, flags, ss_mask, master_proc_id);
+	if (rc != AR_EOK) {
+		GSL_ERR("dynamic pd mapping failed %d", rc);
+		/* restore page ss_id_list */
+		page->shmem_info.num_sys_id = num_sys_id;
+		gsl_memcpy(page->ss_id_list, sizeof(page->ss_id_list), ss_id_list,
+			num_sys_id * sizeof(ar_shmem_proc_info));
+		return rc;
+	}
+	/*
+	 * ss_id_list contains only static PDs as the dynamic PDs
+	 * are skipped during boot up. So, add the dynamic PDs
+	 * to the list after memory is mapped for dynamic PDs.
+	 */
+	page->shmem_info.num_sys_id = num_sys_id;
+	gsl_memcpy(page->ss_id_list, sizeof(page->ss_id_list), ss_id_list,
+		num_sys_id * sizeof(ar_shmem_proc_info));
+	while (dyn_pd_cnt) {
+		--dyn_pd_cnt;
+		page->ss_id_list[page->shmem_info.num_sys_id].proc_id =
+			dyn_pd_list[dyn_pd_cnt];
+		page->ss_id_list[page->shmem_info.num_sys_id++].proc_type =
+			DYNAMIC_PD;
+	}
+	page->spf_ss_mask |= ss_mask;
+	return rc;
+}
+
+int32_t gsl_shmem_unmap_dynamic_pd(struct gsl_shmem_alloc_data *alloc_data,
+	uint32_t ss_mask, uint32_t master_proc_id)
+{
+	int32_t rc = 0;
+	uint32_t tmp_ss_mask = 0;
+	uint32_t num_sys_id = 0, sys_id = AR_SUB_SYS_ID_FIRST;
+	ar_shmem_proc_info ss_id_list[AR_SUB_SYS_ID_LAST];
+	struct gsl_shmem_page *page = NULL;
+
+	if (!ctxt[master_proc_id] || !alloc_data)
+		return AR_EBADPARAM;
+
+	/* Back up page ss_id_list to preserve other pds. */
+	page = alloc_data->handle;
+	gsl_memcpy(ss_id_list, sizeof(ss_id_list), page->ss_id_list,
+		page->shmem_info.num_sys_id * sizeof(ar_shmem_proc_info));
+	num_sys_id = page->shmem_info.num_sys_id;
+	page->shmem_info.num_sys_id = 0;
+	ss_mask &= ~GSL_GET_SPF_SS_MASK(master_proc_id);
+	tmp_ss_mask = ss_mask;
+	while (tmp_ss_mask) {
+		if (GSL_TEST_SPF_SS_BIT(ss_mask, sys_id)) {
+			page->ss_id_list[page->shmem_info.num_sys_id].proc_id =
+				sys_id;
+			page->ss_id_list[page->shmem_info.num_sys_id].proc_type =
+				DYNAMIC_PD;
+			/* Skip unmap command to DSP if proc is down */
+			if ((gsl_spf_ss_state_get(page->master_proc) & ss_mask) != ss_mask)
+				page->ss_id_list[page->shmem_info.num_sys_id].is_active = FALSE;
+			++page->shmem_info.num_sys_id;
+		}
+		++sys_id;
+		tmp_ss_mask >>= 1;
+	}
+	/*
+	 * ss_mask contains only dynamic pd, so unmap
+	 * happens only for dynamic pd.
+	 */
+	rc = gsl_shmem_unmap_allocation(alloc_data, ss_mask);
+	if (rc != AR_EOK)
+		GSL_ERR("dynamic pd unmap failed %d", rc);
+	/*
+	 * Restore page ss_id_list by removing unmapped
+	 * dynamic pds.
+	 */
+	page->shmem_info.num_sys_id = 0;
+	for (int j = 0; j < num_sys_id; j++) {
+		if ((ss_id_list[j].proc_type == DYNAMIC_PD) &&
+			(GSL_TEST_SPF_SS_BIT(ss_mask,
+				ss_id_list[j].proc_id)))
+			continue;
+		page->ss_id_list[page->shmem_info.num_sys_id].proc_id =
+			ss_id_list[j].proc_id;
+		page->ss_id_list[page->shmem_info.num_sys_id++].proc_type =
+			ss_id_list[j].proc_type;
+	}
+	page->spf_ss_mask &= ~ss_mask;
+	return rc;
+}
+
+int32_t gsl_shmem_get_mapped_ss_mask(
+	const struct gsl_shmem_alloc_data *alloc_data)
+{
+	if (alloc_data && alloc_data->handle)
+		return alloc_data->handle->spf_ss_mask;
+	return 0;
 }
 
 uint64_t gsl_shmem_get_metadata(
