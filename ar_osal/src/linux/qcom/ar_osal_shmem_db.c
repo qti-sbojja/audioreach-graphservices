@@ -83,6 +83,178 @@ int32_t ar_shmem_validate_sys_id(uint8_t num_sys_id, uint8_t *sys_id)
         }
     }
 
+#ifdef AR_OSAL_USE_DYNAMIC_PD
+static int32_t ar_shmem_map_dynamic_pd(ar_shmem_info *info, bool_t map)
+{
+    int32_t i = 0, status = AR_EOK;
+
+    if (NULL == info) {
+        AR_LOG_ERR(AR_OSAL_SHMEM_LOG_TAG,"%s: invalid shmem param", __func__);
+        status = AR_EBADPARAM;
+        return status;
+    }
+    for (i = 0; i < info->num_sys_id; ++i) {
+        if (info->sys_id[i].proc_type == DYNAMIC_PD) {
+            if (map) {
+                status = fastrpc_mmap(ar_dsp_domain_id[info->sys_id[i].proc_id],
+                                      info->ipa_lsw, info->vaddr, 0,
+                                      info->buf_size, FASTRPC_MAP_FD);
+            } else {
+                if (info->sys_id[i].is_active)
+                    status = fastrpc_munmap(ar_dsp_domain_id[info->sys_id[i].proc_id],
+                                            info->ipa_lsw, info->vaddr,
+                                            info->buf_size);
+                else
+                    AR_LOG_DEBUG(AR_OSAL_SHMEM_LOG_TAG,"%s: skip unmap as pd %d is down",
+                        __func__, info->sys_id[i].proc_id);
+            }
+            if (status) {
+                AR_LOG_ERR(AR_OSAL_SHMEM_LOG_TAG, "%s:fastrpc_%s failed status %d",
+                __func__, map ? "mmap" : "munmap", status);
+                break;
+            }
+        }
+    }
+
+    if (status && map) {
+        while (i-- > 0) {
+            if (info->sys_id[i].proc_type == DYNAMIC_PD)
+                fastrpc_munmap(ar_dsp_domain_id[info->sys_id[i].proc_id],
+                               info->ipa_lsw, info->vaddr, info->buf_size);
+        }
+    }
+
+    return status;
+}
+#else
+static int32_t ar_shmem_map_dynamic_pd(ar_shmem_info *info, bool_t map)
+{
+    return AR_EOK;
+}
+#endif
+
+static int32_t ar_shmem_map_static_pd(ar_shmem_info *info)
+{
+    int32_t status = AR_EOK;
+    ar_shmem_handle_data_t *shmem_handle = NULL;
+
+    if (NULL == info) {
+        AR_LOG_ERR(AR_OSAL_SHMEM_LOG_TAG,"%s: invalid shmem param", __func__);
+        status = AR_EBADPARAM;
+        goto end;
+    }
+    if (0 == info->pa_lsw && 0 == info->pa_msw) {
+        AR_LOG_ERR(AR_OSAL_SHMEM_LOG_TAG, "Error: pa_lsw:0x%x|pa_msw:0x%x passed",
+        info->pa_lsw, info->pa_msw);
+        status = AR_EBADPARAM;
+        goto end;
+    }
+    shmem_handle = (ar_shmem_handle_data_t *)
+                    malloc(sizeof(ar_shmem_handle_data_t));
+    if (NULL == shmem_handle) {
+        AR_LOG_ERR(AR_OSAL_SHMEM_LOG_TAG, "%s:malloc for shmem handle failed\n", __func__);
+        status = AR_ENOMEMORY;
+        goto end;
+    }
+
+    info->ipa_lsw = 0;
+    info->ipa_msw = 0;
+    info->metadata = 0;
+    info->index_type = AR_SHMEM_BUFFER_OFFSET;
+    info->mem_type = AR_SHMEM_PHYSICAL_MEMORY;
+
+    /*
+     *This api is called by clients when the clients already have allocated shared memory
+     *and now we just need to map it with DSP. On LX platforms what we recieve from clients
+     *is the ion fd, which is passed in the form of pa_lsw and pa_msw. Hence we extract the same
+     *and pass it on to the audio ion driver.
+     */
+    shmem_handle->heap_fd = (((int64_t)info->pa_msw << 32) | info->pa_lsw);
+
+    info->vaddr = mmap(0, info->buf_size,
+                  PROT_READ | PROT_WRITE, MAP_SHARED,
+                  shmem_handle->heap_fd, 0);
+    if (info->vaddr == MAP_FAILED) {
+        AR_LOG_ERR(AR_OSAL_SHMEM_LOG_TAG,"%s: mmap failed \n", __func__);
+        status = AR_ENOMEMORY;
+        goto err2;
+    }
+
+    if ((uint64_t)info->vaddr % SHMEM_4K_ALIGNMENT) {
+        AR_LOG_ERR(AR_OSAL_SHMEM_LOG_TAG, "Error: 4k alignment check failed vaddr(0x%pK)", info->vaddr);
+        info->vaddr = NULL;
+        status = AR_EUNEXPECTED;
+        goto err2;
+    }
+    info->metadata = (uint64_t)shmem_handle;
+    info->ipa_lsw = info->pa_lsw;
+    AR_LOG_VERBOSE(AR_OSAL_SHMEM_LOG_TAG," SHMEM: memory_type(0x%x)|index_type(0x%x)"
+                   "buf_size(0x%x)|vaddr(0x%pK)| ipa_lsw(0x%x)| status(0x%x) ",info->mem_type,
+                    info->index_type, info->buf_size, info->vaddr, info->ipa_lsw, status);
+    if (((info->flags) & (1 << AR_SHMEM_SHIFT_HW_ACCELERATOR_FLAG)) && pdata->dmabuf_cma_mem_enabled) {
+        if (pdata->armem_fd_cma) {
+            status = ioctl(pdata->armem_fd_cma, IOCTL_MAP_PHYS_ADDR, info->ipa_lsw);
+        } else {
+            status = AR_ENOTEXIST;
+            AR_LOG_ERR(AR_OSAL_SHMEM_LOG_TAG,"%s:ION CMA memory does not exist  %d\n",
+                __func__, status);
+        }
+    } else
+        status = ioctl(pdata->armem_fd, IOCTL_MAP_PHYS_ADDR, info->ipa_lsw);
+    if (status) {
+        AR_LOG_ERR(AR_OSAL_SHMEM_LOG_TAG,"%s:Physical address map failed status %d\n", __func__, status);
+        goto err2;
+    }
+    goto end;
+
+err2:
+    free(shmem_handle);
+end:
+    return status;
+}
+
+static int32_t ar_shmem_unmap_static_pd(ar_shmem_info *info)
+{
+    int32_t status = AR_EOK;
+    ar_shmem_handle_data_t *shmem_handle;
+
+    if (NULL == info) {
+        AR_LOG_ERR(AR_OSAL_SHMEM_LOG_TAG,"%s: invalid shmem param", __func__);
+        status = AR_EBADPARAM;
+        goto end;
+    }
+    shmem_handle = (ar_shmem_handle_data_t *)(intptr_t)info->metadata;
+    if (NULL == shmem_handle) {
+       AR_LOG_ERR(AR_OSAL_SHMEM_LOG_TAG,"%s: shmem_handle is NULL\n",
+           __func__);
+       status = AR_EBADPARAM;
+       goto end;
+    }
+
+    munmap(info->vaddr, info->buf_size);
+    if (shmem_handle->heap_fd) {
+        if (((info->flags) & (1 << AR_SHMEM_SHIFT_HW_ACCELERATOR_FLAG) && pdata->dmabuf_cma_mem_enabled)) {
+            if (pdata->armem_fd_cma) {
+                status = ioctl(pdata->armem_fd_cma, IOCTL_UNMAP_PHYS_ADDR, shmem_handle->heap_fd);
+            } else {
+                status = AR_ENOTEXIST;
+                AR_LOG_ERR(AR_OSAL_SHMEM_LOG_TAG,"%s:ION CMA memory does not exist  %d\n",
+                    __func__, status);
+            }
+        } else
+            status = ioctl(pdata->armem_fd, IOCTL_UNMAP_PHYS_ADDR, shmem_handle->heap_fd);
+        if (status) {
+            AR_LOG_ERR(AR_OSAL_SHMEM_LOG_TAG,"%s:unmap failed. status %d\n", __func__, status);
+        }
+        AR_LOG_VERBOSE(AR_OSAL_SHMEM_LOG_TAG,"%s:shmem heap fd %d\n", __func__, shmem_handle->heap_fd);
+        close(shmem_handle->heap_fd);
+    } else {
+        AR_LOG_ERR(AR_OSAL_SHMEM_LOG_TAG,"%s Invalid dmabuf_fd \n", __func__);
+    }
+    if (shmem_handle)
+        free(shmem_handle);
+    info->metadata = 0;
+    info->vaddr = NULL;
 end:
     return status;
 }

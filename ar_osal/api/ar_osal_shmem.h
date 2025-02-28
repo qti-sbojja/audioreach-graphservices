@@ -54,6 +54,12 @@ typedef enum ar_shmem_buffer_index_type
 /**< Shift amount for hardware accelerator setup flag */
 #define AR_SHMEM_SHIFT_HW_ACCELERATOR_FLAG 0x0
 
+typedef struct ar_shmem_proc_info_t {
+	uint8_t proc_id;
+	ar_shmem_pd_type_t proc_type;
+	bool_t is_active;
+} ar_shmem_proc_info;
+
  /**
  * Shared memory info structure
  */
