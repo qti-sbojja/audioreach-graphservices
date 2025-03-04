@@ -289,10 +289,11 @@ static int32_t gsl_shmem_map_page_to_spf(struct gsl_shmem_page *page,
 	int32_t rc = AR_EOK;
 	gpr_cmd_alloc_ext_t gpr_args;
 	uint32_t tmp_spf_ss_mask, spf_ss_mask_sans_adsp;
-	uint32_t sys_id = AR_MODEM_DSP;
+	uint32_t sys_id = AR_SUB_SYS_ID_FIRST;
 	gpr_packet_t *send_pkt = NULL, *rsp_pkt = NULL;
 	uint8_t cma_client_data = 0;
 	uint32_t master_proc_id = page->master_proc;
+	bool_t dynamic_pd = FALSE;
 
 	/* if this is a CMA page we need to set client data on all gpr packets */
 	if ((page->shmem_info.flags & (AR_SHMEM_BIT_MASK_HW_ACCELERATOR_FLAG
@@ -306,6 +307,23 @@ static int32_t gsl_shmem_map_page_to_spf(struct gsl_shmem_page *page,
 	if ((gsl_spf_ss_state_get(master_proc_id) & spf_ss_map_mask) !=
 		spf_ss_map_mask)
 			return AR_ENOTREADY;
+
+	// check if there are some peneding memmap packets need to be unmmaped.
+	gsl_shmem_check_and_unmap_cache_pending_packets(master_proc_id);
+
+	spf_ss_mask_sans_adsp = spf_ss_map_mask &
+		~GSL_GET_SPF_SS_MASK(master_proc_id);
+	tmp_spf_ss_mask = spf_ss_mask_sans_adsp;
+	while (tmp_spf_ss_mask) {
+		if (GSL_TEST_SPF_SS_BIT(spf_ss_mask_sans_adsp, sys_id)) {
+			if (gsl_mdf_utils_is_dynamic_pd(sys_id)) {
+				dynamic_pd = TRUE;
+				break;
+			}
+		}
+		++sys_id;
+		tmp_spf_ss_mask >>= 1;
+	}
 
 	/* first map to master (assumed to be adsp currently) */
 	if (GSL_TEST_SPF_SS_BIT(spf_ss_map_mask, master_proc_id)) {
@@ -346,6 +364,11 @@ static int32_t gsl_shmem_map_page_to_spf(struct gsl_shmem_page *page,
 		if (flags & GSL_SHMEM_MAP_UNCACHED)
 			mmap->mmap_header.property_flag |=
 				APM_MEMORY_MAP_BIT_MASK_IS_UNCACHED;
+		if (dynamic_pd)
+			mmap->mmap_header.property_flag |=
+				APM_MEMORY_MAP_LOANED_MEMORY_HEAP_MNGR_TYPE_SAFE_HEAP <<
+					APM_MEMORY_MAP_SHIFT_LOANED_MEMORY_HEAP_MNGR_TYPE;
+
 		mmap->mmap_payload.shm_addr_lsw = page->shmem_info.ipa_lsw;
 		mmap->mmap_payload.shm_addr_msw = page->shmem_info.ipa_msw;
 		mmap->mmap_payload.mem_size_bytes = page->size_bytes;
@@ -382,13 +405,8 @@ static int32_t gsl_shmem_map_page_to_spf(struct gsl_shmem_page *page,
 		}
 	}
 
-	/*
-	 * map the shared memory to satellite subsystems if any
-	 */
-
-	/* Clear ADSP bit as we dont need to do satellite mapping for ADSP */
-	spf_ss_mask_sans_adsp = spf_ss_map_mask &
-		~GSL_GET_SPF_SS_MASK(master_proc_id);
+	/* map the shared memory to satellite subsystems if any */
+	sys_id = AR_SUB_SYS_ID_FIRST;
 	tmp_spf_ss_mask = spf_ss_mask_sans_adsp;
 	while (tmp_spf_ss_mask) {
 		if (GSL_TEST_SPF_SS_BIT(spf_ss_mask_sans_adsp, sys_id)) {
@@ -418,19 +436,15 @@ static int32_t gsl_shmem_map_page_to_spf(struct gsl_shmem_page *page,
 				mmap_sat->mmap_header.property_flag |=
 				APM_MEMORY_MAP_BIT_MASK_IS_MEM_LOANED;
 			/*
-			 * For dynamic PD indicate gpr kernel driver to skip conversion
-			 * to physical address and pass the handle as is to DSP by setting
-			 * address type.
+			 * For dynamic PD set address type to indicate gpr kernel
+			 * driver to skip conversion to physical address and pass
+			 *    the handle as is to DSP.
 			 */
-			for (int32_t i = 0; i < AR_SUB_SYS_ID_LAST; i++) {
-				if (page->ss_id_list[i].proc_id == sys_id &&
-					page->ss_id_list[i].proc_type == DYNAMIC_PD) {
-					mmap_sat->mmap_header.property_flag |=
-						APM_MEMORY_MAP_MEMORY_ADDRESS_TYPE_FD <<
-							APM_MEMORY_MAP_SHIFT_MEMORY_ADDRESS_TYPE;
-					break;
-				}
-			}
+			if (dynamic_pd)
+				mmap_sat->mmap_header.property_flag |=
+					APM_MEMORY_MAP_MEMORY_ADDRESS_TYPE_FD <<
+						APM_MEMORY_MAP_SHIFT_MEMORY_ADDRESS_TYPE;
+
 			mmap_sat->mmap_payload.shm_addr_lsw = page->shmem_info.ipa_lsw;
 			mmap_sat->mmap_payload.shm_addr_msw = page->shmem_info.ipa_msw;
 			mmap_sat->mmap_payload.mem_size_bytes = page->size_bytes;
