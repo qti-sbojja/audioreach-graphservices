@@ -816,6 +816,8 @@ static int32_t gsl_graph_send_persist_cal(struct gsl_graph *graph,
 	AcdbHwAccelSubgraphInfoReq cma_sg_info_req;
 	AcdbHwAccelSubgraphInfoRsp cma_sg_info;
 	bool_t is_shmem_supported = TRUE;
+	AcdbCmdGetSubgraphProcIdsReq req = {0,};
+	AcdbCmdGetSubgraphProcIdsRsp rsp;
 
 	if (sg_objs->len == 0)
 		return AR_EOK;
@@ -875,38 +877,42 @@ static int32_t gsl_graph_send_persist_cal(struct gsl_graph *graph,
 		}
 
 		/* if persist cal is already regsitered for this SG de-register it */
-		if (sg->persist_cal_data.handle) {
+		GSL_DBG("num procs - %d", sg->num_proc_ids);
+		for (int procid = 0; procid < sg->num_proc_ids; procid++) {
+			if (sg->persist_cal_data_per_proc[procid].persist_cal_data.handle) {
+				GSL_DBG("proc_id[%d] - %d", procid, sg->persist_cal_data_per_proc[procid].proc_id);
 
-			rc = gsl_allocate_gpr_packet(APM_CMD_DEREGISTER_CFG,
-				graph->src_port, APM_MODULE_INSTANCE_ID, sizeof(*cmd_header),
-				0, graph->proc_id, &send_pkt);
-			if (rc) {
-				GSL_ERR("Failed to allocate GPR packet %d", rc);
-				goto exit;
-			}
-			/*
-			 * below offset used to skip acdb header before sending data to
-			 * spf
-			 */
-			paddr_w_offset = sg->persist_cal_data.spf_addr +
-				sizeof(AcdbSgIdPersistData);
-			cmd_header = GPR_PKT_GET_PAYLOAD(apm_cmd_header_t, send_pkt);
-			cmd_header->mem_map_handle = sg->persist_cal_data.spf_mmap_handle;
-			cmd_header->payload_address_lsw = (uint32_t)paddr_w_offset;
-			cmd_header->payload_address_msw = (uint32_t)(paddr_w_offset >> 32);
-			cmd_header->payload_size = sg->persist_cal_data_size -
-				sizeof(AcdbSgIdPersistData);
+				rc = gsl_allocate_gpr_packet(APM_CMD_DEREGISTER_CFG,
+					graph->src_port, APM_MODULE_INSTANCE_ID, sizeof(*cmd_header),
+					0, graph->proc_id, &send_pkt);
+				if (rc) {
+					GSL_ERR("Failed to allocate GPR packet %d", rc);
+					goto exit;
+				}
+				/*
+				* below offset used to skip acdb header before sending data to
+				* spf
+				*/
+				paddr_w_offset = sg->persist_cal_data_per_proc[procid].persist_cal_data.spf_addr +
+					sizeof(AcdbSgIdPersistData);
+				cmd_header = GPR_PKT_GET_PAYLOAD(apm_cmd_header_t, send_pkt);
+				cmd_header->mem_map_handle = sg->persist_cal_data_per_proc[procid].persist_cal_data.spf_mmap_handle;
+				cmd_header->payload_address_lsw = (uint32_t)paddr_w_offset;
+				cmd_header->payload_address_msw = (uint32_t)(paddr_w_offset >> 32);
+				cmd_header->payload_size = sg->persist_cal_data_per_proc[procid].persist_cal_data_size -
+					sizeof(AcdbSgIdPersistData);
 
-			GSL_LOG_PKT("send_pkt", graph->src_port, send_pkt,
-				sizeof(*send_pkt) + sizeof(*cmd_header),
-				sg->persist_cal_data.v_addr, cmd_header->payload_size);
+				GSL_LOG_PKT("send_pkt", graph->src_port, send_pkt,
+					sizeof(*send_pkt) + sizeof(*cmd_header),
+					sg->persist_cal_data_per_proc[procid].persist_cal_data.v_addr, cmd_header->payload_size);
 
-			rc = gsl_send_spf_cmd_wait_for_basic_rsp(&send_pkt,
-				&graph->graph_signal[GRAPH_CTRL_GRP2_CMD_SIG]);
-			if (rc) {
-				GSL_ERR("Graph deregister cfg cmd 0x%x failure:%d",
-					APM_CMD_DEREGISTER_CFG, rc);
-				goto exit;
+				rc = gsl_send_spf_cmd_wait_for_basic_rsp(&send_pkt,
+					&graph->graph_signal[GRAPH_CTRL_GRP2_CMD_SIG]);
+				if (rc) {
+					GSL_ERR("Graph deregister cfg cmd 0x%x failure:%d",
+						APM_CMD_DEREGISTER_CFG, rc);
+					goto exit;
+				}
 			}
 		}
 
@@ -952,7 +958,7 @@ static int32_t gsl_graph_send_persist_cal(struct gsl_graph *graph,
 			gsl_shmem_free(&sg->cma_persist_cfg_data);
 			sg->cma_persist_cfg_data.handle = NULL;
 			sg->cma_persist_cfg_data.v_addr = NULL;
-			sg->persist_cal_data_size = 0;
+			sg->cma_cal_data_size = 0;
 		}
 
 		/* determine whether there is CMA needed or not */
@@ -960,63 +966,95 @@ static int32_t gsl_graph_send_persist_cal(struct gsl_graph *graph,
 		case ACDB_HW_ACCEL_MEM_DEFAULT:
 		case ACDB_HW_ACCEL_MEM_BOTH:
 			/* this is the non-CMA side */
+			/* get num_procs and proc ids per SG from ACDB and store it in sg struct */
 
-			rc = gsl_subgraph_query_persist_cal_by_mem(sg, new_ckv,
-				ACDB_HW_ACCEL_MEM_DEFAULT, graph->proc_id);
-			if (rc == AR_ENOTEXIST) {
-				goto continue_cma;
-			} else if (rc) {
-				GSL_ERR("persist cal query for sg_id %d failed %d",
-					sg->sg_id, rc);
-				goto cleanup;
+			/* first call to get size */
+			req.num_sg_ids = 1;
+			req.sg_ids = &sg->sg_id;
+			rsp.num_sg_ids = 0;
+			rsp.size = 0;
+			rsp.sg_proc_ids = NULL;
+			rc = acdb_ioctl(ACDB_CMD_GET_SUBGRAPH_PROCIDS, &req, sizeof(req), &rsp,
+				sizeof(rsp));
+			if (rc != AR_EOK && rc != AR_ENOTEXIST) {
+				GSL_ERR("ACDB get subgraph procids failed %d", rc);
+				return rc;
 			}
 
-			rc = gsl_allocate_gpr_packet(APM_CMD_REGISTER_CFG,
-				graph->src_port, GSL_GPR_DST_PORT_APM, sizeof(*cmd_header),
-				0, graph->proc_id, &send_pkt);
-			if (rc) {
-				GSL_ERR("Failed to allocate GPR packet for sg_id 0x%x %d",
-					sg->sg_id, rc);
-				goto cleanup;
-			}
-			/*
-			 * below offset used to skip acdb header before sending data to
-			 * spf
-			 */
-			paddr_w_offset = sg->persist_cal_data.spf_addr +
-				sizeof(AcdbSgIdPersistData);
-			cmd_header = GPR_PKT_GET_PAYLOAD(struct apm_cmd_header_t,
-				send_pkt);
-			cmd_header->mem_map_handle =
-				sg->persist_cal_data.spf_mmap_handle;
-			cmd_header->payload_address_lsw = (uint32_t)(paddr_w_offset);
-			cmd_header->payload_address_msw =
-				(uint32_t)(paddr_w_offset >> 32);
-			cmd_header->payload_size = sg->persist_cal_data_size
-				- sizeof(AcdbSgIdPersistData);
-
-			GSL_LOG_PKT("send_pkt", graph->src_port, send_pkt,
-				sizeof(*send_pkt) + sizeof(*cmd_header),
-				(uint8_t *)sg->persist_cal_data.v_addr +
-				sizeof(AcdbSgIdPersistData), cmd_header->payload_size);
-
-			rc = gsl_send_spf_cmd_wait_for_basic_rsp(&send_pkt,
-				&graph->graph_signal[GRAPH_CTRL_GRP2_CMD_SIG]);
-			if (rc) {
-				GSL_ERR("send perist cal for sg_id 0x%x failed %d",
-					sg->sg_id, rc);
-				goto cleanup;
+			rsp.sg_proc_ids = gsl_mem_zalloc(rsp.size);
+			if (!rsp.sg_proc_ids) {
+				rc = AR_ENOMEMORY;
+				return rc;
 			}
 
+			/* next call to get data */
+			rc = acdb_ioctl(ACDB_CMD_GET_SUBGRAPH_PROCIDS, &req, sizeof(req), &rsp,
+				sizeof(rsp));
+			if (rc != AR_EOK) {
+				GSL_ERR("ACDB get subgraph procids failed %d", rc);
+				goto free_sg_proc_ids;
+			}
+			sg->num_proc_ids = rsp.sg_proc_ids->num_proc_ids;
+			GSL_DBG("num procs - %d", sg->num_proc_ids);
+			for (int procid = 0; procid < sg->num_proc_ids; procid++) {
+				sg->persist_cal_data_per_proc[procid].proc_id = rsp.sg_proc_ids->proc_ids[procid];
+				GSL_DBG("proc_id[%d] - %d", procid, sg->persist_cal_data_per_proc[procid].proc_id);
+				rc = gsl_subgraph_query_persist_cal_by_mem(sg, new_ckv,
+					ACDB_HW_ACCEL_MEM_DEFAULT, graph->proc_id, procid);
+				if (rc == AR_ENOTEXIST) {
+					goto continue_cma;
+				} else if (rc) {
+					GSL_ERR("persist cal query for sg_id %d failed %d",
+						sg->sg_id, rc);
+					goto cleanup;
+				}
+
+				rc = gsl_allocate_gpr_packet(APM_CMD_REGISTER_CFG,
+					graph->src_port, GSL_GPR_DST_PORT_APM, sizeof(*cmd_header),
+					0, graph->proc_id, &send_pkt);
+				if (rc) {
+					GSL_ERR("Failed to allocate GPR packet for sg_id 0x%x %d",
+						sg->sg_id, rc);
+					goto cleanup;
+				}
+				/*
+				* below offset used to skip acdb header before sending data to
+				* spf
+				*/
+				paddr_w_offset = sg->persist_cal_data_per_proc[procid].persist_cal_data.spf_addr +
+					sizeof(AcdbSgIdPersistData);
+				cmd_header = GPR_PKT_GET_PAYLOAD(struct apm_cmd_header_t,
+					send_pkt);
+				cmd_header->mem_map_handle =
+					sg->persist_cal_data_per_proc[procid].persist_cal_data.spf_mmap_handle;
+				cmd_header->payload_address_lsw = (uint32_t)(paddr_w_offset);
+				cmd_header->payload_address_msw =
+					(uint32_t)(paddr_w_offset >> 32);
+				cmd_header->payload_size = sg->persist_cal_data_per_proc[procid].persist_cal_data_size
+					- sizeof(AcdbSgIdPersistData);
+
+				GSL_LOG_PKT("send_pkt", graph->src_port, send_pkt,
+					sizeof(*send_pkt) + sizeof(*cmd_header),
+					(uint8_t *)sg->persist_cal_data_per_proc[procid].persist_cal_data.v_addr +
+					sizeof(AcdbSgIdPersistData), cmd_header->payload_size);
+
+				rc = gsl_send_spf_cmd_wait_for_basic_rsp(&send_pkt,
+					&graph->graph_signal[GRAPH_CTRL_GRP2_CMD_SIG]);
+				if (rc) {
+					GSL_ERR("send perist cal for sg_id 0x%x failed %d",
+						sg->sg_id, rc);
+					goto cleanup;
+				}
+			}
 continue_cma:
 			/* do not break for BOTH, continue into cma*/
 			if (cma_sg_info.subgraph_list[i].mem_type != ACDB_HW_ACCEL_MEM_BOTH)
 				break;
 
 		case ACDB_HW_ACCEL_MEM_CMA:
-
+			/* persist_cal per proc_id support is not there for cma memory from AML */
 			rc = gsl_subgraph_query_persist_cal_by_mem(sg, new_ckv,
-				ACDB_HW_ACCEL_MEM_CMA, graph->proc_id);
+				ACDB_HW_ACCEL_MEM_CMA, graph->proc_id, 0);
 			if (rc == AR_ENOTEXIST) {
 				continue;
 			} else if (rc) {
@@ -1081,11 +1119,13 @@ continue_cma:
 			goto cleanup;
 		}
 	}
-
+free_sg_proc_ids:
+	gsl_mem_free(rsp.sg_proc_ids);
 cleanup:
 	gsl_mem_free(cma_sg_info.subgraph_list);
 free_status_list:
 	gsl_mem_free(sg_cma_status_list.list);
+
 exit:
 	return rc;
 }
@@ -1998,7 +2038,7 @@ int32_t gsl_graph_set_tagged_custom_config_persist(struct gsl_graph *graph,
 			GSL_ERR("send perist cal for sg_id 0x%x failed %d",
 				sg_objs[i]->sg_id, rc);
 			gsl_shmem_free(&sg_objs[i]->user_persist_cfg_data);
-			sg_objs[i]->persist_cal_data_size = 0;
+			sg_objs[i]->user_persist_cfg_data_size = 0;
 			goto free_module_info;
 		}
 		gsl_mem_free(module_info);
@@ -2538,36 +2578,38 @@ static int32_t gsl_graph_close_single_gkv(struct gsl_graph *graph,
 		sg_obj_list.len = gkv_node->num_of_subgraphs;
 		sg_obj_list.sg_objs = gkv_node->sg_array;
 		sg = gsl_graph_get_sg_ptr(&sg_obj_list, pruned_sg_ids.sg_ids[i]);
-		if (sg && sg->persist_cal_data.handle) {
-			rc = gsl_allocate_gpr_packet(APM_CMD_DEREGISTER_CFG,
-				graph->src_port, APM_MODULE_INSTANCE_ID, sizeof(*cmd_header),
-				0, graph->proc_id, &send_pkt);
-			if (rc) {
-				GSL_ERR("Failed to allocate GPR packet %d", rc);
-				continue;
-			}
-			/*
-			 * below offset used to skip acdb header before sending data to
-			 * spf
-			 */
-			paddr_w_offset = sg->persist_cal_data.spf_addr +
-				sizeof(AcdbSgIdPersistData);
-			cmd_header = GPR_PKT_GET_PAYLOAD(apm_cmd_header_t, send_pkt);
-			cmd_header->mem_map_handle = sg->persist_cal_data.spf_mmap_handle;
-			cmd_header->payload_address_lsw = (uint32_t)paddr_w_offset;
-			cmd_header->payload_address_msw = (uint32_t)(paddr_w_offset >> 32);
-			cmd_header->payload_size = sg->persist_cal_data_size -
-				sizeof(AcdbSgIdPersistData);
+		for (int procid = 0; procid < sg->num_proc_ids; procid++) {
+			if (sg && sg->persist_cal_data_per_proc[procid].persist_cal_data.handle) {
+				rc = gsl_allocate_gpr_packet(APM_CMD_DEREGISTER_CFG,
+					graph->src_port, APM_MODULE_INSTANCE_ID, sizeof(*cmd_header),
+					0, graph->proc_id, &send_pkt);
+				if (rc) {
+					GSL_ERR("Failed to allocate GPR packet %d", rc);
+					continue;
+				}
+				/*
+				* below offset used to skip acdb header before sending data to
+				* spf
+				*/
+					paddr_w_offset = sg->persist_cal_data_per_proc[procid].persist_cal_data.spf_addr +
+					sizeof(AcdbSgIdPersistData);
+				cmd_header = GPR_PKT_GET_PAYLOAD(apm_cmd_header_t, send_pkt);
+					cmd_header->mem_map_handle = sg->persist_cal_data_per_proc[procid].persist_cal_data.spf_mmap_handle;
+				cmd_header->payload_address_lsw = (uint32_t)paddr_w_offset;
+				cmd_header->payload_address_msw = (uint32_t)(paddr_w_offset >> 32);
+					cmd_header->payload_size = sg->persist_cal_data_per_proc[procid].persist_cal_data_size -
+					sizeof(AcdbSgIdPersistData);
 
-			GSL_LOG_PKT("send_pkt", graph->src_port, send_pkt,
-				sizeof(*send_pkt) + sizeof(*cmd_header),
-				sg->persist_cal_data.v_addr, cmd_header->payload_size);
+				GSL_LOG_PKT("send_pkt", graph->src_port, send_pkt,
+					sizeof(*send_pkt) + sizeof(*cmd_header),
+						sg->persist_cal_data_per_proc[procid].persist_cal_data.v_addr, cmd_header->payload_size);
 
-			rc = gsl_send_spf_cmd_wait_for_basic_rsp(&send_pkt,
-				&graph->graph_signal[GRAPH_CTRL_GRP2_CMD_SIG]);
-			if (rc) {
-				GSL_ERR("Graph deregister cfg cmd 0x%x failure:%d",
-					APM_CMD_DEREGISTER_CFG, rc);
+				rc = gsl_send_spf_cmd_wait_for_basic_rsp(&send_pkt,
+					&graph->graph_signal[GRAPH_CTRL_GRP2_CMD_SIG]);
+				if (rc) {
+					GSL_ERR("Graph deregister cfg cmd 0x%x failure:%d",
+						APM_CMD_DEREGISTER_CFG, rc);
+				}
 			}
 		}
 		if (sg && sg->user_persist_cfg_data.handle) {
@@ -2615,11 +2657,15 @@ static int32_t gsl_graph_close_single_gkv(struct gsl_graph *graph,
 		sg_obj_list.len = gkv_node->num_of_subgraphs;
 		sg_obj_list.sg_objs = gkv_node->sg_array;
 		sg = gsl_graph_get_sg_ptr(&sg_obj_list, pruned_sg_ids.sg_ids[i]);
-		if (sg && sg->persist_cal_data.handle) {
-			gsl_shmem_free(&sg->persist_cal_data);
-			sg->persist_cal_data.v_addr = NULL;
-			sg->persist_cal_data.handle = NULL;
-			sg->persist_cal_data_size = 0;
+		if (sg) {
+			for (int i = 0; i < sg->num_proc_ids; i++) {
+				if (sg->persist_cal_data_per_proc[i].persist_cal_data.handle) {
+					gsl_shmem_free(&sg->persist_cal_data_per_proc[i].persist_cal_data);
+					sg->persist_cal_data_per_proc[i].persist_cal_data.v_addr = NULL;
+					sg->persist_cal_data_per_proc[i].persist_cal_data.handle = NULL;
+					sg->persist_cal_data_per_proc[i].persist_cal_data_size = 0;
+				}
+			}
 		}
 		if (sg && sg->user_persist_cfg_data.handle) {
 			gsl_shmem_free(&sg->user_persist_cfg_data);
@@ -2634,7 +2680,7 @@ static int32_t gsl_graph_close_single_gkv(struct gsl_graph *graph,
 			gsl_shmem_free(&sg->cma_persist_cfg_data);
 			sg->cma_persist_cfg_data.v_addr = NULL;
 			sg->cma_persist_cfg_data.handle = NULL;
-			sg->persist_cal_data_size = 0;
+			sg->cma_cal_data_size = 0;
 		}
 	}
 

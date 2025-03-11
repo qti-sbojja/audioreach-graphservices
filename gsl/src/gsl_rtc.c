@@ -223,10 +223,10 @@ int32_t gsl_rtc_graph_get_persist_data(struct gsl_graph *graph, uint32_t sgid,
 	if (!total_size || !sg_cal_data)
 		return AR_EFAILED;
 
-	if (sg->persist_cal_data.v_addr)
-		*sg_cal_data = sg->persist_cal_data.v_addr;
+	if (sg->persist_cal_data_per_proc[0].persist_cal_data.v_addr)
+		*sg_cal_data = sg->persist_cal_data_per_proc[0].persist_cal_data.v_addr;
 
-	*total_size = sg->persist_cal_data_size;
+	*total_size = sg->persist_cal_data_per_proc[0].persist_cal_data_size;
 
 	return AR_EOK;
 }
@@ -362,7 +362,7 @@ int32_t gsl_rtc_graph_set_persist_data(struct gsl_graph *graph,
 	if (!graph)
 		return AR_EFAILED;
 	sg = gsl_graph_get_sg_ptr(graph, params->sgid);
-	if (!sg || !sg->persist_cal_data.v_addr)
+	if (!sg || !sg->persist_cal_data_per_proc[0].persist_cal_data.v_addr)
 		return AR_EFAILED;
 
 	rc = gsl_allocate_gpr_packet(APM_CMD_DEREGISTER_CFG,
@@ -376,17 +376,17 @@ int32_t gsl_rtc_graph_set_persist_data(struct gsl_graph *graph,
 	 * below offset used to skip acdb header before sending data to
 	 * spf
 	 */
-	cal_paddr_w_offset = sg->persist_cal_data.spf_addr +
+	cal_paddr_w_offset = sg->persist_cal_data_per_proc[0].persist_cal_data.spf_addr +
 		sizeof(AcdbSgIdPersistData);
 	cmd_header = GPR_PKT_GET_PAYLOAD(apm_cmd_header_t, send_pkt);
-	cmd_header->mem_map_handle = sg->persist_cal_data.spf_mmap_handle;
+	cmd_header->mem_map_handle = sg->persist_cal_data_per_proc[0].persist_cal_data.spf_mmap_handle;
 	cmd_header->payload_address_lsw = (uint32_t)cal_paddr_w_offset;
 	cmd_header->payload_address_msw = (uint32_t)(cal_paddr_w_offset >> 32);
-	cmd_header->payload_size = sg->persist_cal_data_size -
+	cmd_header->payload_size = sg->persist_cal_data_per_proc[0].persist_cal_data_size -
 		sizeof(AcdbSgIdPersistData);
 
 	GSL_LOG_PKT("send_pkt", rtc_internal_ctxt.src_port, send_pkt,
-		sizeof(*send_pkt) + sizeof(*cmd_header), sg->persist_cal_data.v_addr,
+		sizeof(*send_pkt) + sizeof(*cmd_header), sg->persist_cal_data_per_proc[0].persist_cal_data.v_addr,
 		cmd_header->payload_size);
 
 	rc = gsl_send_spf_cmd_wait_for_basic_rsp(&send_pkt,
@@ -401,7 +401,7 @@ int32_t gsl_rtc_graph_set_persist_data(struct gsl_graph *graph,
 	if (!params->sg_cal_data) {
 		rc = gsl_subgraph_query_persist_cal_by_mem(sg,
 			(struct gsl_key_vector *)params->ckv, ACDB_HW_ACCEL_MEM_DEFAULT,
-			graph->proc_id);
+			graph->proc_id, 0);
 		if (rc) {
 			GSL_ERR("Failed to query persist cal %d", rc);
 			goto exit;
@@ -426,18 +426,18 @@ int32_t gsl_rtc_graph_set_persist_data(struct gsl_graph *graph,
 	 * below offset used to skip acdb header before sending data to
 	 * spf
 	 */
-	cal_paddr_w_offset = sg->persist_cal_data.spf_addr +
+	cal_paddr_w_offset = sg->persist_cal_data_per_proc[0].persist_cal_data.spf_addr +
 		sizeof(AcdbSgIdPersistData);
 
 	cmd_header = GPR_PKT_GET_PAYLOAD(apm_cmd_header_t, send_pkt);
-	cmd_header->mem_map_handle = sg->persist_cal_data.spf_mmap_handle;
+	cmd_header->mem_map_handle = sg->persist_cal_data_per_proc[0].persist_cal_data.spf_mmap_handle;
 	cmd_header->payload_address_lsw = (uint32_t)cal_paddr_w_offset;
 	cmd_header->payload_address_msw = (uint32_t)(cal_paddr_w_offset >> 32);
-	cmd_header->payload_size = sg->persist_cal_data_size -
+	cmd_header->payload_size = sg->persist_cal_data_per_proc[0].persist_cal_data_size -
 		sizeof(AcdbSgIdPersistData);
 
 	GSL_LOG_PKT("send_pkt", rtc_internal_ctxt.src_port, send_pkt,
-		sizeof(*send_pkt) + sizeof(*cmd_header), sg->persist_cal_data.v_addr,
+		sizeof(*send_pkt) + sizeof(*cmd_header), sg->persist_cal_data_per_proc[0].persist_cal_data.v_addr,
 		cmd_header->payload_size);
 
 	rc = gsl_send_spf_cmd_wait_for_basic_rsp(&send_pkt,

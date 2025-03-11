@@ -42,6 +42,12 @@ struct gsl_shmem_alloc_data {
 	uint64_t metadata; /*< metadata returned from OSAL */
 };
 
+struct gsl_shmem_alloc_data_per_proc {
+	uint32_t proc_id;
+	struct gsl_shmem_alloc_data persist_cal_data;
+	uint32_t persist_cal_data_size;
+};
+
 /*
  * master_proc id values can vary from AR_SUB_SYS_ID_FIRST - AR_SUB_SYS_ID_LAST
  * proc_ids as defined in ar_osal_sys_id.h
