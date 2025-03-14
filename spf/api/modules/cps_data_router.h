@@ -23,12 +23,12 @@
    Constants
 ==============================================================================*/
 #define CPS_STACK_SIZE 1024
-#define CPS_NUM_MAX_SPKRS 4
+#define CPS_NUM_MAX_SPKRS 8
 #define CPS_MAX_INPUT_PORTS 1
 #define CPS_MAX_OUTPUT_PORTS 0
 
 /* Unique Module ID */
-#define MODULE_ID_CPS_DATA_ROUTER 0x70010E4
+#define MODULE_ID_CPS_DATA_ROUTER_V7 0x07001180
 
 /** @h2xmlm_module       {"MODULE_ID_CPS_DATA_ROUTER",
                           MODULE_ID_CPS_DATA_ROUTER}
@@ -74,7 +74,7 @@
 ==============================================================================*/
 
 /* Unique Paramter id */
-#define PARAM_ID_CPS_CHANNEL_MAP 0x080013CB  //todo: Mention explicitly in CCB as well that this is for channel ordering and not for left, right or center etc channels
+#define PARAM_ID_CPS_CHANNEL_MAP 0x08001B5F //todo: Mention explicitly in CCB as well that this is for channel ordering and not for left, right or center etc channels
 
 /*==============================================================================
    Type definitions
