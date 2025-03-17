@@ -131,7 +131,7 @@ int32_t gsl_subgraph_query_persist_cal_by_mem(struct gsl_subgraph *sg_obj,
  */
 int32_t gsl_subgraph_set_persist_cal(struct gsl_subgraph *sg,
 	uint8_t *persistent_cal, uint32_t persistent_cal_sz,
-	uint32_t master_proc);
+	uint32_t master_proc, uint32_t persist_cal_idx);
 
 /**
  * \brief Checks if the given subgraph matches at least one of the property
