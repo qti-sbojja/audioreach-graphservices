@@ -47,7 +47,8 @@
     \n
    }
     @h2xmlm_dataMaxInputPorts   {1}
-    @h2xmlm_dataMaxOutputPorts  {0}
+    @h2xmlm_dataMaxOutputPorts  {1}
+    @h2xmlm_dataOutputPorts     {OUT=1}
     @h2xmlm_dataInputPorts      {IN=2}
     @h2xmlm_supportedContTypes {APM_CONTAINER_TYPE_GC}
     @h2xmlm_isOffloadable       {true}
@@ -88,7 +89,20 @@ struct asr_version_t
 #include "spf_end_pack.h"
 ;
 
-/*   @h2xml_Select                                {asr_version_t}
+/*
+Supported language codes
+*/
+typedef enum ASR_LANGUAGE_CODE_t{
+    en_US=0,
+    zh_CN,
+    hi_IN,
+    es_US,
+    ko_KR,
+    ja_JP,
+    language_code_end_1
+}ASR_LANGUAGE_CODE_t;
+
+/*   @h2xml_Select                     {asr_version_t}
      @h2xmlm_InsertParameter */
 
 /*  ID of the ASR configuration parameter used by MODULE_ID_ASR.*/
@@ -106,20 +120,6 @@ typedef struct param_id_asr_config_t param_id_asr_config_t;
 /*  Payload of the PARAM_ID_ASR_CONFIG parameter used by the
  ASR module.
  */
-
-/*
-Supported language codes
-*/
-typedef enum ASR_LANGUAGE_CODE_t{
-    en_US=0,
-    zh_CN,
-    hi_IN,
-    es_US,
-    ko_KR,
-    ja_JP,
-    language_code_end_1
-}ASR_LANGUAGE_CODE_t;
-
 struct param_id_asr_config_t
 {
     uint32_t input_language_code;               // input language code, refer enum ASR_LANGUAGE_CODE_t
@@ -164,7 +164,7 @@ struct param_id_asr_config_t
 ;
 
 
-/*   @h2xml_Select                 {param_id_asr_config_t}
+/*   @h2xml_Select                    {param_id_asr_config_t}
      @h2xmlm_InsertParameter */
 
 
@@ -237,7 +237,7 @@ typedef enum asr_output_mode_t
                          Send the event to clients once buffer is full.
                          Typical usage : save transcription output in background. */
 
-     LOGGER,              /* Buffer up ASR engine output based on configured buffer size from client.
+     LOGGER,             /* Buffer up ASR engine output based on configured buffer size from client.
                          Send the output when the client queries it.
                          Typical usage : save transcription output in a circular buffer. */
 
@@ -275,12 +275,15 @@ struct param_id_asr_output_config_t
 {
     uint32_t output_mode;               // mode of ASR output data requested by application
     /**< @h2xmle_description {Configuration to specify transcription output mode depending on usecase requirement.
-                              NON_BUFFERED - Output of each ASR algo process is immediately sent to client.
-                              BUFFERED     - Output of each ASR algo process is buffered and sent to client intermittently.
-                              LOGGER       - Output of each ASR algo process is buffered and sent to client on demand.}
+                              NON_BUFFERED    - Output of each ASR algo process is immediately sent to client.
+                              BUFFERED        - Output of each ASR algo process is buffered and sent to client intermittently.
+                              LOGGER          - Output of each ASR algo process is stored and sent to client on demand.
+                              TS_NON_BUFFERED - Output of each ASR algo process is immediately sent to client with timestamps.
+                              TS_BUFFERED     - Output of each ASR algo process is buffered and sent to client intermittently with timestamps.
+                              TS_LOGGER       - Output of each ASR algo process is stored and sent to client on demand with timestamps.}
          @h2xmle_default     {NON_BUFFERED}
-         @h2xmle_rangeList   {"NON_BUFFERED"=0, "BUFFERED"=1, "LOGGER"=2} */
-   uint32_t out_buf_size;      // size in bytes of buffer to use in different output modes, primarily in buffered and logger mode
+         @h2xmle_rangeList   {"NON_BUFFERED"=0, "BUFFERED"=1, "LOGGER"=2, "TS_NON_BUFFERED"=3, "TS_BUFFERED"=4, "TS_LOGGER"=5} */
+   uint32_t out_buf_size;      // size in bytes of buffer to use in different output modes, primarily in buffered mode
     /**< @h2xmle_description {Configuration to specify transcription output buffer size depending on usecase requirement. }
          @h2xmle_default     {} // ASR engine controlled default if not configured
          @h2xmle_range       {0.. 262144} */
@@ -415,13 +418,13 @@ struct asr_model_param_t
 /* Event config to provide the info of getparam vs inband vs both */
 struct event_id_asr_output_event_t
 {
-   uint32_t asr_out_mode;
-   /**< @h2xmle_description   {output mode of ASR event. Default mode is Getparam.
-                               Getparam = Client will query via getparam upon receiving this event, using the
+   uint32_t event_payload_type;
+   /**< @h2xmle_description   {Event payload type. Default mode is Query.
+                               QUERY = Client will query via getparam upon receiving this event, using the
                                          output_token provided as part of this payload.
                                Inband = ASR output payload follows inband after the payload_size field }
          @h2xmle_default      {0}
-         @h2xmle_rangeList    {"Getparam"=0, "Inband"=1} */
+         @h2xmle_rangeList    {"Query"=0, "Inband"=1} */
    uint32_t output_token;
    /**< @h2xmle_description   {Token provided by the AsR engine corresponding to an output.
                                This can be used by clients to query the payload param in 'Getparam' mode}
@@ -497,6 +500,161 @@ struct param_id_asr_output_t
 ;
 
 /*   @h2xml_Select                 {param_id_asr_output_t}
+     @h2xmlm_InsertParameter */
+
+/*  ID of the ASR input threshold parameter used by MODULE_ID_ASR.*/
+#define PARAM_ID_ASR_ALGO_MAX_INFERENCE_TIME                  0x08001B06
+
+/*  Structure for the input threshold parameter of ASR module. */
+typedef struct param_id_asr_algo_max_inference_time_t param_id_asr_algo_max_inference_time_t;
+/** @h2xmlp_parameter   {"PARAM_ID_ASR_ALGO_MAX_INFERENCE_TIME", PARAM_ID_ASR_ALGO_MAX_INFERENCE_TIME}
+    @h2xmlp_description {Param to control input input buffers  size in partial output mode, to prevent the PCM data overflow. It should be set based on the worst enpu inference time.}
+    @h2xmlp_toolPolicy  {CALIBRATION} */
+
+#include "spf_begin_pack.h"
+#include "spf_begin_pragma.h"
+
+/*  Payload of the PARAM_ID_ASR_ALGO_MAX_INFERENCE_TIME parameter used by the
+ ASR module.
+ */
+struct param_id_asr_algo_max_inference_time_t
+{
+    uint32_t worstcase_time_ms;    // Max inference time taken by algo to process the input threshold amount worth of data.
+    /**< @h2xmle_description {Maximum duration to process the input data by the algorithm for one inference in ms.
+          This is taken as input as this can vary based on model and enpu capability etc., hence tuning this for memory requirements based on usecase needs external input.}
+         @h2xmle_range       {80..30000} ms
+         @h2xmle_default     {5000} */
+}
+#include "spf_end_pragma.h"
+#include "spf_end_pack.h"
+;
+
+/*   @h2xml_Select                   {param_id_asr_algo_max_inference_time_t}
+     @h2xmlm_InsertParameter */
+
+#include "spf_begin_pack.h"
+#include "spf_begin_pragma.h"
+#define MAX_WORD_SIZE 28
+
+struct asr_word_status_t
+{
+   uint32_t word_confidence;
+   /**< @h2xmle_description  {Field indicating the confidence level of word detected by the algorithm between 0 to 100} */
+
+   uint32_t word_size;
+   /**< @h2xmle_description  {Field indicating the number of characters present in the word. (Not including the NULL character)} */
+
+   uint8_t word[MAX_WORD_SIZE];
+   /**< @h2xmle_description  {Field indicating the array of characters (in a word) detected by the algorithm. MAX_WORD_SIZE to be a multiple of 4. Client should read only word_size from this array for the actual word which does not include any null term char} */
+
+   uint32_t word_start_time_ms_lsw;
+   /**< @h2xmle_description  {Field indicating word start timestamp in ms least significant 32 bits.} */
+
+   uint32_t word_start_time_ms_msw;
+   /**< @h2xmle_description  {Field indicating word start timestamp in ms most significant 32 bits.} */
+
+   uint32_t word_end_time_ms_lsw;
+   /**< @h2xmle_description  {Field indicating word end timestamp in ms least significant 32 bits.} */
+
+   uint32_t word_end_time_ms_msw;
+   /**< @h2xmle_description  {Field indicating word end timestamp in ms most significant 32 bits.} */
+};
+
+struct asr_output_status_v2_t
+{
+    uint32_t status;
+   /**< @h2xmle_description  {Status of ASR output in this payload}
+         @h2xmle_default      {0}
+         @h2xmle_rangeList    {"ASR_SUCCESS"=0,"ASR_FAIL"=1} */
+
+   uint32_t is_final;
+   /**< @h2xmle_description  {Field indicating payload is partial output of ASR or complete}
+         @h2xmle_default      {TRUE}
+         @h2xmle_rangeList    {"TRUE"=1, "FALSE"=0} */
+
+   uint32_t confidence;
+   /**< @h2xmle_description  {Field indicating confidence level of output} */
+
+   uint32_t text_size;
+   /**< @h2xmle_description  {Field indicating size of valid text including NULL Char } */
+
+   uint8_t text[MAX_TRANSCRIPTION_CHAR_SIZE];
+   /**< @h2xmle_description  {ASR output text } */
+
+   uint32_t segment_start_time_ms_lsw;
+   /**< @h2xmle_description  {Field indicating transcription start timestamp in ms least significant 32 bits.} */
+
+   uint32_t segment_start_time_ms_msw;
+   /**< @h2xmle_description  {Field indicating transcription start timestamp in ms most significant 32 bits.} */
+
+   uint32_t segment_end_time_ms_lsw;
+   /**< @h2xmle_description  {Field indicating transcription end timestamp in ms least significant 32 bits.} */
+
+   uint32_t segment_end_time_ms_msw;
+   /**< @h2xmle_description  {Field indicating transcription end timestamp in ms most significant 32 bits.} */
+
+   uint32_t num_words;
+   /**< @h2xmle_description  {Field indicating num of words produced by ASR engine. this is variable payload based on num_words field above.} */
+
+ #if defined(__H2XML__)
+   asr_word_status_t words[0];
+   /**< @h2xmle_description  {Field indicating the ptr to the words list of words produced by ASR engine.} */
+#endif
+}
+#include "spf_end_pragma.h"
+#include "spf_end_pack.h"
+;
+
+typedef struct asr_output_status_v2_t asr_output_status_v2_t;
+
+
+/*  ID of the ASR output get parameter used by MODULE_ID_ASR.*/
+#define PARAM_ID_ASR_OUTPUT_V2 0x08001B04
+
+/*  Structure for the output get parameter of ASR module. */
+typedef struct param_id_asr_output_v2_t param_id_asr_output_v2_t;
+/** @h2xmlp_parameter   {"PARAM_ID_ASR_OUTPUT_V2", PARAM_ID_ASR_OUTPUT_V2}
+    @h2xmlp_description {Get Param to query output from the module based on asr_out_mode in event_id_asr_output_event_t }
+    @h2xmlp_toolPolicy  {NO_SUPPORT} */
+
+#include "spf_begin_pack.h"
+#include "spf_begin_pragma.h"
+
+/*  Payload of the PARAM_ID_ASR_OUTPUT_V2 parameter used by the
+ ASR module.
+ */
+
+struct param_id_asr_output_v2_t
+{
+   uint32_t output_token;
+   /**< @h2xmle_description   {Token provided by the ASR engine corresponding to an output.
+                               This can be used by clients to query the corresponding payload.
+                               If not configured or invalid, Payload corresponds to output buffers
+                               in sequential order as produced by ASR engine.}
+         @h2xmle_default      {0}
+         @h2xmle_range        {0..0xFFFFFFFF} */
+   uint32_t num_outputs;
+   /**< @h2xmle_description   {Number of outputs of type asr_output_status_v2_t in the payload }
+         @h2xmle_default      {0}
+         @h2xmle_range        {0..0xFFFFFFFF} */
+   uint32_t payload_size;
+   /**< @h2xmle_description   {Payload size in bytes. Following this field is the payload of
+                              this size. Payload is variable array of type asr_output_status_v2_t .
+                              Size '0' indicates this is an event generated without any valid output,
+                              for example : in response to a force output param set by client. }
+         @h2xmle_default      {0}
+         @h2xmle_range        {0..0xFFFFFFFF} */
+#if defined(__H2XML__)
+   asr_output_status_v2_t transcription_payload[0];
+   /*@variableArraySize {payload_size} */
+#endif
+}
+
+#include "spf_end_pragma.h"
+#include "spf_end_pack.h"
+;
+
+/*   @h2xml_Select                    {param_id_asr_output_v2_t}
      @h2xmlm_InsertParameter */
 
 /** @}                   <-- End of the Module -->*/
