@@ -35,7 +35,8 @@ osal_c_sources = ./src/linux/ar_osal_file_io.c \
                  ./src/linux/ar_osal_string.c \
                  ./src/linux/ar_osal_thread.c \
                  ./src/linux/ar_osal_timer.c \
-                 ./src/linux/qcom/ar_osal_servreg.c
+                 ./src/linux/qcom/ar_osal_servreg.c \
+                 ./src/linux/qcom/dyn_pd/ar_osal_dyn_pd.c
 
 
 if ARGS_VENDOR_QCOM
@@ -71,6 +72,10 @@ libar_osal_la_LIBADD += -lcutils -llog
 AM_CFLAGS += -DAR_OSAL_USE_CUTILS
 endif
 
+if ION_DRIVER_NOT_SUPPORTED
+AM_CFLAGS += -DION_DRIVER_UNSUPPORTED
+endif
+
 if USE_GLIB
 libar_osal_la_LIBADD += -lglib-2.0
 AM_CFLAGS += $(GLIB_CFLAGS) -D_GNU_SOURCE -include glib.h
@@ -85,11 +90,11 @@ lib_include_HEADERS = $(osal_sources)
 lib_LTLIBRARIES = libar-osal.la
 libar_osal_la_CC = @CC@
 libar_osal_la_SOURCES = $(osal_c_sources)
-libar_osal_la_CFLAGS = $(AM_CFLAGS) @DIAG_CFLAGS@  @LT_VERSION_NUMBER@
+libar_osal_la_CFLAGS = $(AM_CFLAGS) @DIAG_CFLAGS@
 
 if LIBION_SUPPORTED
 libar_osal_la_LIBADD += -lion
 libar_osal_la_CFLAGS += @LIBION_CFLAGS@
 endif
 
-libar_osal_la_LDFLAGS = -shared -avoid-version
+libar_osal_la_LDFLAGS = -shared -version-number @LT_VERSION_NUMBER@

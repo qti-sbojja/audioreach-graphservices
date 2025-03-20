@@ -97,6 +97,12 @@ AC_ARG_WITH([are_on_apps],
     [with_are_on_apps=no])
 AM_CONDITIONAL([USE_ARE_ON_APPS], [test "x${with_are_on_apps}" = "xyes"])
 
+AC_ARG_WITH([msm_audio_ion_disable],
+    AS_HELP_STRING([MSM audio ion disable (default is no)]),
+    [with_msm_audio_ion_disable=$withval],
+    [with_msm_audio_ion_disable=no])
+AM_CONDITIONAL([ION_DRIVER_NOT_SUPPORTED], [test "x${with_msm_audio_ion_disable}" = "xyes"])
+
 AC_ARG_WITH([ats_data_logging],
     AS_HELP_STRING([Use ATS data logging using Data Logging Service(DLS) (default is yes)]),
      [with_ats_data_logging=$withval],

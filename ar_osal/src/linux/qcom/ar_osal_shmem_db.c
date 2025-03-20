@@ -36,8 +36,13 @@
 #endif
 #include "ar_osal_sleep.h"
 #define  SHMEM_4K_ALIGNMENT       0x1000
+#ifndef ION_DRIVER_UNSUPPORTED
 #define AR_MEM_DRIVER_PATH "/dev/msm_audio_ion"
 #define AR_MEM_DRIVER_PATH_CMA "/dev/msm_audio_ion_cma"
+#else
+#define AR_MEM_DRIVER_PATH "/dev/msm_audio_mem"
+#define AR_MEM_DRIVER_PATH_CMA "/dev/msm_audio_mem_cma"
+#endif
 #ifdef MDSP_PROC
 #define DMABUF_SYS_HEAP_PATH "/dev/dma_heap/qcom,audio"
 #else
