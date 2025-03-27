@@ -337,12 +337,19 @@ typedef struct event_id_asr_output_reg_cfg_t event_id_asr_output_reg_cfg_t;
 /* Maximum transcription text size of ASR output in one process call */
 #define MAX_TRANSCRIPTION_CHAR_SIZE 1024
 
+enum asr_output_status_value
+{
+    ASR_SUCCESS = 0,
+    ASR_FAIL    = 1,
+    ASR_TIMEOUT = 12,
+};
+
 struct asr_output_status_t
 {
     uint32_t status;
    /**< @h2xmle_description  {Status of ASR output in this payload}
          @h2xmle_default      {0}
-         @h2xmle_rangeList    {"ASR_SUCCESS"=0,"ASR_FAIL"=1} */
+         @h2xmle_rangeList    {"ASR_SUCCESS"=0,"ASR_FAIL"=1,"ASR_TIMEOUT"=12} */
 
    uint32_t is_final;
    /**< @h2xmle_description  {Field indicating payload is partial output of ASR or complete}
