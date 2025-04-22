@@ -115,8 +115,6 @@ static void servreg_callback(ar_osal_servreg_t servreg_handle,
 		}
 		if (serv_ntfy_pld->service_state == AR_OSAL_SERVICE_STATE_DOWN) {
 			GSL_INFO("AR_OSAL_SERVICE_STATE_DOWN proc_id %d", proc_id);
-			/* update the global Spf SS state */
-			gsl_spf_ss_state_set(master_proc, ss_mask, GSL_SPF_SS_STATE_DN);
 			/*
 			 * For dynamic PD down notification, restart master proc.
 			 * PD down notification can also be sent for normal PD close
@@ -125,6 +123,7 @@ static void servreg_callback(ar_osal_servreg_t servreg_handle,
 			 */
 			if (gsl_mdf_utils_is_dynamic_pd(proc_id)) {
 				if (!gsl_mdf_utils_is_dynamic_pd_deinit_pending(proc_id)) {
+					gsl_spf_ss_state_set(master_proc, ss_mask, GSL_SPF_SS_STATE_DN);
 					GSL_INFO("Restart master proc %d for dynamic pd %d crash",
 						master_proc, proc_id);
 					ar_osal_servreg_restart_service(
@@ -132,6 +131,7 @@ static void servreg_callback(ar_osal_servreg_t servreg_handle,
 				}
 					return;
 			}
+			gsl_spf_ss_state_set(master_proc, ss_mask, GSL_SPF_SS_STATE_DN);
 			/* notify gsl_main */
 			_spf_cluster_ss_state[master_proc]->ssr_cb(GSL_SPF_SS_STATE_DN,
 								   ss_mask);
