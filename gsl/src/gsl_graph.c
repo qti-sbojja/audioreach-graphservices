@@ -1262,7 +1262,9 @@ static int32_t check_and_register_dynamic_pd(struct gsl_graph *graph,
 	int32_t i = 0, j = 0, rc = AR_EOK;
 	uint32_t sg_ss_mask = 0;
 	uint32_t tmp_ss_masks[sgids->len];
+	uint32_t tmp_dyn_ss_mask = 0;
 
+	*dyn_ss_mask = 0;
 	GSL_DBG("proc_id %d, num subgraphs %d, ss_mask 0x%x", graph->proc_id, sgids->len, ss_mask);
 	if (ss_mask == (uint32_t) GSL_GET_SPF_SS_MASK(graph->proc_id))
 		return AR_EOK;
@@ -1273,7 +1275,8 @@ static int32_t check_and_register_dynamic_pd(struct gsl_graph *graph,
 		if (sg_ss_mask == GSL_GET_SPF_SS_MASK(graph->proc_id))
 			continue;
 		rc = gsl_mdf_utils_register_dynamic_pd(sg_ss_mask, graph->proc_id, graph->src_port,
-			&graph->graph_signal[GRAPH_CTRL_GRP2_CMD_SIG], dyn_ss_mask);
+			&graph->graph_signal[GRAPH_CTRL_GRP2_CMD_SIG], &tmp_dyn_ss_mask);
+		*dyn_ss_mask |= tmp_dyn_ss_mask;
 		if (rc) {
 			GSL_ERR("dynamic pd registration failed, status %d", rc);
 			goto err_exit;
@@ -1285,6 +1288,7 @@ static int32_t check_and_register_dynamic_pd(struct gsl_graph *graph,
 err_exit:
 	while (j-- > 0)
 		gsl_mdf_utils_deregister_dynamic_pd(tmp_ss_masks[j], graph->proc_id);
+	*dyn_ss_mask = 0;
 	return rc;
 
 }
@@ -2282,8 +2286,6 @@ static int32_t gsl_graph_close_sgids_and_connections(struct gsl_graph *graph,
 
 	gsl_msg_free(&gsl_msg);
 
-	rc = check_and_deregister_dynamic_pd(graph, &sgids);
-
 exit:
 	return rc;
 }
@@ -2684,6 +2686,7 @@ static int32_t gsl_graph_close_single_gkv(struct gsl_graph *graph,
 	}
 
 free_pruned_sg_info:
+	rc = check_and_deregister_dynamic_pd(graph, &pruned_sg_ids);
 
 	if (props) {
 		rc = gsl_graph_remove_sgs_w_props(gkv_node, props);
@@ -2929,7 +2932,7 @@ static int32_t gsl_graph_open_sgids_and_connections(struct gsl_graph *graph,
 	struct gsl_sgobj_list sg_obj_list;
 	gsl_msg_t gsl_msg;
 	bool_t is_shmem_supported = TRUE;
-	bool_t dyn_pd_failed = FALSE;
+	bool_t dyn_pd_registered = FALSE;
 	uint32_t dyn_ss_mask = 0;
 
 	/* check if there are any sub-graphs or edges to open */
@@ -3007,9 +3010,9 @@ static int32_t gsl_graph_open_sgids_and_connections(struct gsl_graph *graph,
 					gkv_node->spf_ss_mask, &dyn_ss_mask);
 			if (rc) {
 				GSL_ERR("dynamic pd create failed, status %d", rc);
-				dyn_pd_failed = TRUE;
 				goto free_sg_prop_data;
 			}
+			dyn_pd_registered = TRUE;
 			/*
 			 * If there was a dynamic PD, the allocation would have happened
 			 * already as part of check_and_register_dynamic_pd.
@@ -3132,6 +3135,8 @@ free_gsl_msg:
 
 free_sg_prop_data:
 	gsl_mem_free(drv_blob.sub_graph_prop_data);
+	if (rc != AR_EOK && dyn_pd_registered)
+		gsl_mdf_utils_deregister_dynamic_pd(graph->ss_mask, graph->proc_id);
 
 exit:
 	return rc;
