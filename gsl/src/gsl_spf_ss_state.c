@@ -122,7 +122,7 @@ static void servreg_callback(ar_osal_servreg_t servreg_handle,
 			 * for such case.
 			 */
 			if (gsl_mdf_utils_is_dynamic_pd(proc_id)) {
-				if (!gsl_mdf_utils_is_dynamic_pd_deinit_pending(proc_id)) {
+				if (gsl_mdf_utils_get_dynamic_pd_state(proc_id)) {
 					gsl_spf_ss_state_set(master_proc, ss_mask, GSL_SPF_SS_STATE_DN);
 					GSL_INFO("Restart master proc %d for dynamic pd %d crash",
 						master_proc, proc_id);

@@ -78,12 +78,14 @@ bool_t gsl_mdf_utils_is_dynamic_pd(uint32_t proc_id)
 	return FALSE;
 }
 
-bool_t gsl_mdf_utils_is_dynamic_pd_deinit_pending(uint32_t proc_id)
+bool_t gsl_mdf_utils_get_dynamic_pd_state(uint32_t proc_id)
 {
-	if (proc_id < AR_SUB_SYS_ID_FIRST || proc_id > AR_SUB_SYS_ID_LAST)
-		return FALSE;
+	if ((proc_id >= AR_SUB_SYS_ID_FIRST && proc_id <= AR_SUB_SYS_ID_LAST) &&
+		_gsl_glb_mdf_info.pd_init_ref_cnt[proc_id] &&
+		!_gsl_glb_mdf_info.pd_deinit_pending[proc_id])
+		return TRUE;
 
-	return _gsl_glb_mdf_info.pd_deinit_pending[proc_id];
+	return FALSE;
 }
 
 uint32_t gsl_mdf_utils_query_graph_ss_mask(uint32_t *sg_id_list,
