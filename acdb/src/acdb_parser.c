@@ -82,7 +82,20 @@ int32_t acdb_parser_get_chunk(
 
     while (start_ptr < end_ptr)
     {
+        if (start_ptr + sizeof(acdb_chunk_header_t) > end_ptr)
+        {
+            status = AR_EFAILED;
+            break;
+        }
+
         header = (acdb_chunk_header_t*)start_ptr;
+
+        uint8_t* next_chunk = start_ptr + sizeof(acdb_chunk_header_t) + header->size;
+        if (next_chunk > end_ptr || header->size == 0)
+        {
+            status = AR_EFAILED;
+            break;
+        }
 
         if (header->id == chunk_id)
         {
@@ -93,7 +106,7 @@ int32_t acdb_parser_get_chunk(
             break;
         }
 
-        start_ptr += sizeof(acdb_chunk_header_t) + header->size;
+        start_ptr = next_chunk;
     }
 
     return status;
