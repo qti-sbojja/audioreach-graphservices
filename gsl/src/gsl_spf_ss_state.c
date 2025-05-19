@@ -227,11 +227,13 @@ static uint32_t gsl_servreg_setup(void)
 		servreg_handle = ar_osal_servreg_register(AR_OSAL_CLIENT_LISTENER,
 						servreg_callback, _spf_cluster_ss_state[proc_id],
 						domain_list + i, &service);
-		if (!servreg_handle) {
-			GSL_ERR("failed to register for service %c", rc);
-			rc = AR_EFAILED;
-			goto free_handle_list;
-		}
+		/*
+		 * On some platform variants, the proc may not be present. Ideally the servereg
+		 * domain list could indicate this, but it may not be possible due to cross platform
+		 * build dependencies. So, ignore the error to avoid failing to initialize GSL.
+		 */
+		if (!servreg_handle)
+			GSL_ERR("failed to register for %s : %s, continue", domain_list[i].name, service.name);
 
 		servreg_handle_list->handles[proc_id] = servreg_handle;
 	}
@@ -239,8 +241,6 @@ static uint32_t gsl_servreg_setup(void)
 	gsl_mem_free(domain_list);
 	return rc;
 
-free_handle_list:
-	gsl_mem_free(servreg_handle_list);
 free_domain_list:
 	gsl_mem_free(domain_list);
 deinit_state_notify:
