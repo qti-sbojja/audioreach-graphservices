@@ -28,7 +28,7 @@ jobs:
         uses: ./.github/actions/pull_docker_image
         with:
           image_name: ${{ inputs.docker_image }}
-          github_token: ${{ secrets.QTI_SBOJJA }}
+          github_token: ${{ secrets.hasiburr_qti }}
 
       - name: Download build artifact
         id: download_build_artifact
