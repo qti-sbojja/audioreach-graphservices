@@ -31,7 +31,7 @@ jobs:
         uses: ./.github/actions/pull_docker_image
         with:
           image_name: ar-image:latest
-          github_token: ${{ secrets.PAT }}
+          github_token: ${{ secrets.QTI_SBOJJA }}
 
       - name: Pull SDK sh file
         id: pull_sdk
