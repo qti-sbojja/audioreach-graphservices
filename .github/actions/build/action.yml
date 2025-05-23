@@ -33,6 +33,9 @@ runs:
         # Load the build arguments
         set +x
 
+        # Apply patch
+        git apply ../meta-ar/recipes/audio/audioreach-graphservices/0001-ar_osal-update-msm_audio.h-header-include-path.patch
+
         # Build inside a docker container
         docker run \
           --rm \
@@ -49,7 +52,7 @@ runs:
             autoconf --force
 
             # Run the configure script with the specified arguments
-            ./configure ${BUILD_ARGS} --with-sanitized-headers=${GITHUB_WORKSPACE}/install/sysroots/armv8-2a-poky-linux/usr/lib/modules/6.14.0-01052-g6613b499fc69/build/include/uapi/sound/qcom
+            ./configure CFLAGS="-Wno-int-conversion" ${BUILD_ARGS} --with-sanitized-headers=${GITHUB_WORKSPACE}/install/sysroots/armv8-2a-poky-linux/usr/lib/modules/6.14.0-01052-g6613b499fc69/build/include/uapi/sound/qcom
             # make
             make DESTDIR=${GITHUB_WORKSPACE}/build install
             "
