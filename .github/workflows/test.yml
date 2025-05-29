@@ -45,7 +45,7 @@ jobs:
       - name: Print trigger
         run: |
           echo "Triggered by ${{ github.event_name }}"
-          echo "Build URL: ${{ needs.process_url.outputs.build_url }}"
+          echo "Build URL: --->"
           echo "${{ needs.process_url.outputs.build_url }}"
 
       - name: "List jobs"
