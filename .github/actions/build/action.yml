@@ -57,7 +57,7 @@ runs:
             make DESTDIR=${GITHUB_WORKSPACE}/build install
             "
 
-    - name: Create build.tar 
+    - name: Create build.tar
       id: create_build_tar
       shell: bash
       run: |

@@ -29,8 +29,7 @@ jobs:
     with:
       docker_image: ar-image:latest
 
-  # will enable test once lava devices available.
-  #  trigger_lava:
-  #    needs: [ load_parameters, build, process_image ]
-  #    uses: ./.github/workflows/test.yml
-  #    secrets: inherit
+  trigger_lava:
+    needs: [ load_parameters, build, process_image ]
+    uses: ./.github/workflows/test.yml
+    secrets: inherit

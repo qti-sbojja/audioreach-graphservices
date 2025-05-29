@@ -10,8 +10,9 @@ on:
         required: true
         type: string
 
+# Using kodiak flat_build
 env:
-  IMAGE_NAME: core-image-base-qcs6490-rb3gen2-core-kit.rootfs-20250514094843.qcomflash
+  IMAGE_NAME: core-image-base-qcs6490-rb3gen2-core-kit.rootfs.qcomflash
 
 jobs:
   process_image:
@@ -66,6 +67,7 @@ jobs:
 
           echo "Extracting the image"
           tar -xvf ${{ env.IMAGE_NAME }}.tar.gz
+          rm -rf ${{ env.IMAGE_NAME }}.tar.gz
           echo "Image extracted successfully"
 
           ls -l ${{ env.IMAGE_NAME }}/rootfs.img
@@ -104,7 +106,7 @@ jobs:
           set -e
           echo $PWD
           echo "Creating tar image for qcomflash directory"
-          tar -cvf core-image-base-qcs6490-rb3gen2-core-kit.rootfs.qcomflash.tar.gz ${{ env.IMAGE_NAME }}/
+          tar -cvf ${{ env.IMAGE_NAME }}.tar.gz ${{ env.IMAGE_NAME }}/
           echo "Tar image created successfully"
 
       - name: Upload tar image
@@ -112,6 +114,5 @@ jobs:
         uses: ./.github/actions/aws-s3-exchanger
         with:
           s3_bucket: qli-prd-audior-gh-artifacts
-          local_file: ${{ github.workspace }}/core-image-base-qcs6490-rb3gen2-core-kit.rootfs.qcomflash.tar.gz
-          location: Audioreach/args
+          local_file: ${{ github.workspace }}/${{ env.IMAGE_NAME }}.tar.gz
           mode: upload

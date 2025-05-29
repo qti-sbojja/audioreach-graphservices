@@ -10,6 +10,7 @@ on:
         type: string
         description: Required build arguments
 
+# Use Kodiak's sdk for compiling, as sdk is similar for all the targets
 env:
   SDK_NAME: poky-glibc-x86_64-core-image-base-armv8-2a-qcs6490-rb3gen2-core-kit-toolchain-5.2.sh
 
@@ -39,7 +40,7 @@ jobs:
           s3_bucket: qli-prd-audior-gh-artifacts
           download_filename: ${{ env.SDK_NAME }}
           mode: download
-          location: Audioreach/meta-ar
+          location: Audioreach/meta-ar/post_merge_build
 
       - name: Setup Directory Structure
         run: mkdir -p install/tmp
