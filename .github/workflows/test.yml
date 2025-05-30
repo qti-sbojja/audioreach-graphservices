@@ -5,11 +5,17 @@ on:
   workflow_call:
 
 jobs:
-  process_url:
-    outputs:
-      build_url: ${{ steps.get_build_url.outputs.result }}
-    runs-on: ubuntu-latest
+  submit_lava:
+    runs-on:
+      group: GHA-Audioreach-SelfHosted-RG
+      labels: [ self-hosted, audior-prd-u2204-x64-large-od-ephem ]
     steps:
+      - name: Clone repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          repository: Audioreach/meta-ar
+
       - name: Download presigned URL
         id: download_url
         uses: actions/download-artifact@v4
@@ -26,27 +32,13 @@ jobs:
             const filePath = `${{ github.workspace }}/presigned_url.txt`
             const url = fs.readFileSync(filePath, 'utf8').toString().trim()
             console.log(url)
-            core.setOutput('result', url)
-
-  submit_lava:
-    runs-on:
-      group: GHA-Audioreach-SelfHosted-RG
-      labels: [ self-hosted, audior-prd-u2204-x64-large-od-ephem ]
-    needs: process_url
-    outputs:
-      jobmatrix: ${{ steps.listjobs.outputs.jobmatrix }}
-    steps:
-      - name: Clone repository
-        uses: actions/checkout@v4
-        with:
-          fetch-depth: 0
-          repository: Audioreach/meta-ar
+            core.setOutput('build_url', url)
           
       - name: Print trigger
         run: |
           echo "Triggered by ${{ github.event_name }}"
           echo "Build URL: --->"
-          echo "${{ needs.process_url.outputs.build_url }}"
+          echo "${{ steps.get_build_url.outputs.build_url }}"
 
       - name: "List jobs"
         id: listjobs
@@ -63,7 +55,7 @@ jobs:
           DEVICE_TYPE_PATH="${FIND_PATH%/*}"
           DEVICE_TYPE="${DEVICE_TYPE_PATH#*/}"
           BUILD_FILE_NAME="core-image-base-qcs6490-rb3gen2-core-kit.rootfs.qcomflash.tar.gz"
-          BUILD_DOWNLOAD_URL="${{ needs.process_url.outputs.build_url }}"
+          BUILD_DOWNLOAD_URL="${{ steps.get_build_url.outputs.build_url }}"
           sed -i "s|{{DEVICE_TYPE}}|${DEVICE_TYPE}|g" "${target_file}"
           sed -i "s|{{GITHUB_SHA}}|${GITHUB_SHA}|g" "${target_file}"
           ESCAPED_URL=$(echo "$BUILD_DOWNLOAD_URL" | sed 's/[&/?=]/\\&/g')
