@@ -47,9 +47,9 @@ runs:
           --privileged \
           ${{ inputs.docker_image }} \
           bash -c "
+            source ./install/environment-setup-armv8-2a-poky-linux
             kernel_version=$(ls ${GITHUB_WORKSPACE}/install/sysroots/armv8-2a-poky-linux/usr/lib/modules/)
             echo "Kernel version: $kernel_version"
-            source ./install/environment-setup-armv8-2a-poky-linux
             autoreconf -Wcross --verbose --install --force --exclude=autopoint
             autoconf --force
 
