@@ -58,8 +58,8 @@ jobs:
           BUILD_DOWNLOAD_URL="${{ steps.get_build_url.outputs.build_url }}"
           sed -i "s|{{DEVICE_TYPE}}|${DEVICE_TYPE}|g" "${target_file}"
           sed -i "s|{{GITHUB_SHA}}|${GITHUB_SHA}|g" "${target_file}"
-          ESCAPED_URL=$(echo "$BUILD_DOWNLOAD_URL" | sed 's/[&/?=]/\\&/g')
-          sed -i "s|{{BUILD_DOWNLOAD_URL}}|$ESCAPED_URL|g" "${target_file}"
+          ESCAPED_URL=$(printf '%s\n' "$BUILD_DOWNLOAD_URL" | sed 's/[&/?=]/\\&/g')
+          sed -i "s|{{BUILD_DOWNLOAD_URL}}|${ESCAPED_URL}|g" "${target_file}"
           sed -i "s|{{BUILD_FILE_NAME}}|${BUILD_FILE_NAME}|g" "${target_file}"
           sed -i "s|{{GITHUB_RUN_ID}}|${GITHUB_RUN_ID}|g" "${target_file}"
           cat "${target_file}"
