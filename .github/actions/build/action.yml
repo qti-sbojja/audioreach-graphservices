@@ -32,8 +32,6 @@ runs:
       run: |
         # Load the build arguments
         set +x
-        kernel_version=$(ls ${{ github.workspace }}/install/sysroots/armv8-2a-poky-linux/usr/lib/modules/)
-        echo "Kernel version: $kernel_version"
 
         # Apply patch
         git apply ../meta-ar/recipes/audio/audioreach-graphservices/0001-ar_osal-update-msm_audio.h-header-include-path.patch
@@ -46,16 +44,17 @@ runs:
           -w $PWD \
           -e "GITHUB_WORKSPACE=${{ github.workspace }}" \
           -e "BUILD_ARGS=${{ env.build_args }}" \
-          -e "KERNEL_VERSION=${kernel_version}" \
           --privileged \
           ${{ inputs.docker_image }} \
           bash -c "
+            kernel_version=$(ls ${GITHUB_WORKSPACE}/install/sysroots/armv8-2a-poky-linux/usr/lib/modules/)
+            echo "Kernel version: $kernel_version"
             source ./install/environment-setup-armv8-2a-poky-linux
             autoreconf -Wcross --verbose --install --force --exclude=autopoint
             autoconf --force
 
             # Run the configure script with the specified arguments
-            ./configure CFLAGS="-Wno-int-conversion" ${BUILD_ARGS} --with-sanitized-headers=${GITHUB_WORKSPACE}/install/sysroots/armv8-2a-poky-linux/usr/lib/modules/${KERNEL_VERSION}/build/include/uapi/sound/qcom
+            ./configure CFLAGS="-Wno-int-conversion" ${BUILD_ARGS} --with-sanitized-headers="${GITHUB_WORKSPACE}/install/sysroots/armv8-2a-poky-linux/usr/lib/modules/${kernel_version}/build/include/uapi/sound/qcom"
             # make
             make DESTDIR=${GITHUB_WORKSPACE}/build install
             "
