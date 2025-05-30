@@ -47,16 +47,17 @@ runs:
           --privileged \
           ${{ inputs.docker_image }} \
           bash -c "
+            set +x
             source ./install/environment-setup-armv8-2a-poky-linux
-            kernel_version=$(ls ${GITHUB_WORKSPACE}/install/sysroots/armv8-2a-poky-linux/usr/lib/modules/)
+            kernel_version=$(ls "${GITHUB_WORKSPACE}/install/sysroots/armv8-2a-poky-linux/usr/lib/modules/" | head -n 1)
             echo "Kernel version: $kernel_version"
             autoreconf -Wcross --verbose --install --force --exclude=autopoint
             autoconf --force
 
             # Run the configure script with the specified arguments
-            ./configure CFLAGS="-Wno-int-conversion" ${BUILD_ARGS} --with-sanitized-headers="${GITHUB_WORKSPACE}/install/sysroots/armv8-2a-poky-linux/usr/lib/modules/${kernel_version}/build/include/uapi/sound/qcom"
+            ./configure CFLAGS="-Wno-int-conversion" "${BUILD_ARGS}" --with-sanitized-headers="${GITHUB_WORKSPACE}/install/sysroots/armv8-2a-poky-linux/usr/lib/modules/${kernel_version}/build/include/uapi/sound/qcom"
             # make
-            make DESTDIR=${GITHUB_WORKSPACE}/build install
+            make DESTDIR="${GITHUB_WORKSPACE}/build" install
             "
 
     - name: Create build.tar
