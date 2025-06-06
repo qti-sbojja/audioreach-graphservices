@@ -60,9 +60,9 @@ struct gsl_mdf_info {
 	/* susbystems domain type information */
 	struct proc_domain_type *pd_info;
 	/* dynamic pd reference count */
-	uint32_t pd_init_ref_cnt[AR_SUB_SYS_ID_LAST];
+	uint32_t pd_init_ref_cnt[AR_SUB_SYS_ID_LAST + 1];
 	/* dynamic pd deinit pending used to skip PD DOWN treated as crash */
-	bool_t pd_deinit_pending[AR_SUB_SYS_ID_LAST];
+	bool_t pd_deinit_pending[AR_SUB_SYS_ID_LAST + 1];
 
 } _gsl_glb_mdf_info = {0, NULL, 0, 0, NULL, {0}, {FALSE}};
 
@@ -357,6 +357,10 @@ int32_t gsl_mdf_utils_get_supported_ss_info_from_acdb(void)
 					*((uint32_t *)acdb_rsp.buf));
 			goto exit;
 		}
+	}
+	if (grps == NULL) {
+		rc = AR_ENOTEXIST;
+		goto exit;
 	}
 	for (i = 0; i < _gsl_glb_mdf_info.num_procs; ++i) {
 		found = FALSE;
