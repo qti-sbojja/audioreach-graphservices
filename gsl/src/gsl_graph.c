@@ -735,6 +735,85 @@ static int32_t gsl_acdb_get_subgraph_data(struct gsl_sgid_list *sg_id_list,
 	return rc;
 }
 
+static void gsl_graph_ckv_list_print(AcdbKeyVectorList *rsp)
+{
+	uint32_t i = 0, j = 0;
+	uint8_t* pKv = NULL;
+	AcdbKeyVector *kvs = NULL;
+
+	pKv = (uint8_t*)rsp->key_vector_list;
+	for (i = 0; i < rsp->num_key_vectors; i++) {
+		kvs = (AcdbKeyVector *)pKv;
+		if (!kvs) {
+			GSL_ERR("kvs is null");
+			return;
+		}
+		GSL_VERBOSE("num_keys %d", kvs->num_keys);
+		for (j = 0; j < kvs->num_keys; j++) {
+			AcdbKeyValuePair kv = kvs->graph_key_vector[j];
+			GSL_VERBOSE("key:0x%x, value:%x", kv.key, kv.value);
+		}
+		pKv += sizeof(uint32_t) + kvs->num_keys * sizeof(AcdbKeyValuePair);
+	}
+}
+
+static void gsl_graph_check_ckvs(struct gsl_key_vector *gkv, struct gsl_key_vector *ckv)
+{
+	AcdbKeyVectorList rsp;
+	AcdbKeyVector *kvs = NULL;
+	uint8_t* pKv = NULL;
+	uint32_t i = 0, j = 0;
+	uint32_t key = 0;
+	int ckv_count = 0;
+	int rc = AR_EOK;
+
+	rsp.list_size = 0;
+	rc = gsl_get_graph_ckvs(gkv, (void *)&rsp);
+	if (rc) {
+		GSL_ERR("gsl_get_graph_ckvs failed: %d", rc);
+		return;
+	}
+
+	GSL_DBG("num_key_vectors %d, list_size %d", rsp.num_key_vectors, rsp.list_size);
+	rsp.key_vector_list = (AcdbKeyVector *)malloc(rsp.list_size);
+	if (!rsp.key_vector_list) {
+		GSL_ERR("malloc return failed");
+		return;
+	}
+
+	rc = gsl_get_graph_ckvs(gkv, (void *)&rsp);
+	if (rc) {
+		GSL_ERR("gsl_get_graph_ckvs failed: %d", rc);
+		goto exit;
+	}
+
+	gsl_graph_ckv_list_print(&rsp);
+
+	// get CKV count
+	pKv = (uint8_t*)rsp.key_vector_list;
+	for (i = 0; i < rsp.num_key_vectors; i++) {
+		kvs = (AcdbKeyVector *)pKv;
+		GSL_VERBOSE("num_keys %d", kvs->num_keys);
+		for (j = 0; j < kvs->num_keys; j++) {
+			AcdbKeyValuePair kv = kvs->graph_key_vector[j];
+			GSL_VERBOSE("key:0x%x, value:%x", kv.key, kv.value);
+			if (key != kv.key) {
+				key = kv.key;
+				ckv_count++;
+			}
+		}
+		pKv += sizeof(uint32_t) + kvs->num_keys * sizeof(AcdbKeyValuePair);
+	}
+
+	if (ckv_count != ckv->num_kvps)
+			GSL_ERR("CKVs mismatched. ACDB CKVs count %d CKVs sent from HAL count %d", ckv_count, ckv->num_kvps);
+
+	exit:
+	if (rsp.key_vector_list) {
+		free(rsp.key_vector_list);
+	}
+}
+
 static int32_t gsl_graph_send_nonpersist_cal(struct gsl_graph *graph,
 	struct gsl_sgid_list *sgid_list,
 	struct gsl_key_vector *prior_ckv, const struct gsl_key_vector *new_ckv)
