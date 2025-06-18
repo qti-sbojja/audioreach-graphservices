@@ -5153,16 +5153,16 @@ int32_t gsl_graph_change_single_gkv(struct gsl_graph *graph,
 		}
 	}
 
-	if (!gkv_found)
+	preserved_sgids = &old_node->rtc_cache.preserved_sgids;
+	pruned_plus_reopen_sg_conn =
+		&old_node->rtc_cache.pruned_plus_reopen_sg_conn;
+
+	if (!gkv_found || !preserved_sgids || !pruned_plus_reopen_sg_conn)
 		return AR_EBADPARAM;
 
 	new_node = gsl_mem_zalloc(sizeof(struct gsl_graph_gkv_node));
 	if (!new_node)
 		return AR_ENOMEMORY;
-
-	preserved_sgids = &old_node->rtc_cache.preserved_sgids;
-	pruned_plus_reopen_sg_conn =
-		&old_node->rtc_cache.pruned_plus_reopen_sg_conn;
 
 	GSL_MUTEX_LOCK(lock);
 
