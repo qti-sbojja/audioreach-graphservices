@@ -82,16 +82,17 @@ struct nmt_version_t
 /*
  * Supported language codes
  */
-typedef enum NMT_LANGUAGE_CODE_t {
-   en_US = 0,
-   zh_CN,
-   hi_IN,
-   es_US,
-   ko_KR,
-   ja_JP,
-   language_code_end_1 = 0xFFFFFFFF
-} NMT_LANGUAGE_CODE_t;
-
+namespace NMT {
+    typedef enum NMT_LANGUAGE_CODE_t {
+        en_US = 0,
+        zh_CN,
+        hi_IN,
+        es_US,
+        ko_KR,
+        ja_JP,
+        language_code_end_1 = 0xFFFFFFFF
+    } NMT_LANGUAGE_CODE_t;
+}
 /*  ID of the NMT configuration parameter used by MODULE_ID_NMT.*/
 #define PARAM_ID_NMT_CONFIG                       0x08001B2B
 
@@ -122,17 +123,17 @@ struct param_id_nmt_config_t
 /*   @h2xml_Select           {param_id_nmt_config_t}
      @h2xmlm_InsertParameter */
 
-typedef enum nmt_output_mode_t
-{
-    NON_BUFFERED = 0,     /* Send NMT engine output immediately. Each buffer shall have one payload
-                             corresponding to a partial/complete segment of speech.
-                             Typical usage : live display of output. */
-
-    BUFFERED,             /* Buffer up NMT engine output based on configured buffer size from client.
-                             Send the event to clients once buffer is full.
-                             Typical usage : save transcription output in background. */
-} nmt_output_mode_t;
-
+namespace NMT{
+    typedef enum nmt_output_mode_t
+    {
+        NON_BUFFERED = 0,     /* Send NMT engine output immediately. Each buffer shall have one payload
+                                 corresponding to a partial/complete segment of speech.
+                                 Typical usage : live display of output. */
+        BUFFERED,             /* Buffer up NMT engine output based on configured buffer size from client.
+                                 Send the event to clients once buffer is full.
+                                 Typical usage : save transcription output in background. */
+    } nmt_output_mode_t;
+}
 /*  ID of the NMT output configuration parameter used by MODULE_ID_NMT.*/
 #define PARAM_ID_NMT_OUTPUT_CONFIG                          0x08001B80
 
