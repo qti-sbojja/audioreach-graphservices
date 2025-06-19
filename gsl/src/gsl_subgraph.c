@@ -183,6 +183,9 @@ int32_t gsl_subgraph_query_persist_cal_by_mem(struct gsl_subgraph *sg_obj,
 	if (!sg_obj || !ckv)
 		return AR_EBADPARAM;
 
+         if (persist_cal_idx < 0 || persist_cal_idx > sg_obj->num_proc_ids)
+		return AR_EBADPARAM;
+
 	sg_pair.subgraph_id = sg_obj->sg_id;
 	sg_pair.proc_id = sg_obj->persist_cal_data_per_proc[persist_cal_idx].proc_id;
 	/* actual proc_id where persist_cal needs to be applied. */
@@ -283,6 +286,10 @@ int32_t gsl_subgraph_set_persist_cal(struct gsl_subgraph *sg,
 
 	if (!sg || !persistent_cal)
 		return AR_EBADPARAM;
+
+        if (persist_cal_idx < 0 || persist_cal_idx > sg->num_proc_ids)
+		return AR_EBADPARAM;
+
 
 	rc = gsl_mdf_utils_query_graph_ss_mask(&sg->sg_id, 1, &sg_ss_mask);
 	if (rc) {
