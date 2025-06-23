@@ -527,6 +527,9 @@ struct param_id_sp_ex_cps_stats_t
 
 /* Unique Paramter id */
 #define PARAM_ID_SP_OP_MODE 0x08001B40
+/* unique param id for spv5 */
+#define PARAM_ID_SP_OP_MODE_V5 0x080011E9
+
 
 /*==============================================================================
    Type definitions

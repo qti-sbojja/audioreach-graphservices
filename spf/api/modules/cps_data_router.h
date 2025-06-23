@@ -75,6 +75,8 @@
 
 /* Unique Paramter id */
 #define PARAM_ID_CPS_CHANNEL_MAP 0x08001B5F //todo: Mention explicitly in CCB as well that this is for channel ordering and not for left, right or center etc channels
+/* Unique Param ID for spv5 */
+#define PARAM_ID_CPS_CHANNEL_MAP_V5 0x080013CB
 
 /*==============================================================================
    Type definitions
