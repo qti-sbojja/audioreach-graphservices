@@ -817,7 +817,7 @@ static int32_t gsl_graph_send_persist_cal(struct gsl_graph *graph,
 	AcdbHwAccelSubgraphInfoRsp cma_sg_info;
 	bool_t is_shmem_supported = TRUE;
 	AcdbCmdGetSubgraphProcIdsReq req = {0,};
-	AcdbCmdGetSubgraphProcIdsRsp rsp;
+	AcdbCmdGetSubgraphProcIdsRsp rsp = {0,};
 
 	if (sg_objs->len == 0)
 		return AR_EOK;
