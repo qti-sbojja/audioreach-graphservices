@@ -188,6 +188,9 @@ int32_t gsl_send_spf_cmd(gpr_packet_t **packet, struct gsl_signal *sig_p,
 		} else if (opcode == APM_CMD_GRAPH_START || opcode == APM_CMD_GRAPH_STOP) {
 			rc = gsl_signal_timedwait(sig_p, GSL_GRAPH_START_STOP_TIMEOUT_MS,
 				&ev_flags, &spf_status, rsp_pkt);
+		} else if (opcode == APM_CMD_GRAPH_PREPARE) {
+			rc = gsl_signal_timedwait(sig_p, GSL_GRAPH_PREPARE_TIMEOUT_MS, &ev_flags,
+				&spf_status, rsp_pkt);
 		} else {
 			rc = gsl_signal_timedwait(sig_p, GSL_SPF_TIMEOUT_MS, &ev_flags,
 				&spf_status, rsp_pkt);
