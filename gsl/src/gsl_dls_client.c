@@ -238,7 +238,7 @@ int32_t gsl_dls_client_get_log_buffer(uint32_t log_buffer_index, struct gls_dls_
     dls_shmem_buffer_pool = (uint8_t *)dls_client_ctxt.dls_shmem.v_addr + dls_buffer_offset;
     dls_buffer_ptr = (dls_buf_hdr_t *)(dls_shmem_buffer_pool);
 
-    dls_log_buffer->size = dls_buffer_ptr->buf_size + sizeof(uint16_t);
+    dls_log_buffer->size = dls_buffer_ptr->buf_size - sizeof(dls_buf_hdr_t);
     dls_log_buffer->buffer = dls_shmem_buffer_pool + sizeof(dls_buf_hdr_t);
 
     return rc;
