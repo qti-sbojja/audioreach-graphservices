@@ -187,7 +187,8 @@ int32_t gsl_subgraph_query_persist_cal_by_mem(struct gsl_subgraph *sg_obj,
 		return AR_EBADPARAM;
 
 	sg_pair.subgraph_id = sg_obj->sg_id;
-	sg_pair.proc_id = sg_obj->persist_cal_data_per_proc[persist_cal_idx].proc_id;
+	sg_pair.proc_id = ACDB_HW_ACCEL_MEM_TYPE_MASK(
+		sg_obj->persist_cal_data_per_proc[persist_cal_idx].proc_id, mem_type);
 	/* actual proc_id where persist_cal needs to be applied. */
 
 	cmd_struct.num_subgraphs = 1;

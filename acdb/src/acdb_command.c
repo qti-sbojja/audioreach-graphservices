@@ -5347,7 +5347,7 @@ int32_t AcdbGetSubgraphCalibration(AcdbAudioCalContextInfo *info,
                 return status;
             }
 
-            if (proc_domain_id != info->proc_id)
+            if (proc_domain_id != ACDB_HW_ACCEL_PROC_ID(info->proc_id))
             {
                 //go to next parameter
                 cur_dot_offset += sizeof(uint32_t);
@@ -6817,7 +6817,7 @@ int32_t GetVcpmModuleParamPair(
             //return status;
         }
 
-        if ((proc_domain_id != vcpm_info->proc_id) && AR_SUCCEEDED(status))
+        if ((proc_domain_id != ACDB_HW_ACCEL_PROC_ID(vcpm_info->proc_id)) && AR_SUCCEEDED(status))
         {
             //go to next parameter
             *should_skip_param = TRUE;
