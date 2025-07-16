@@ -7230,6 +7230,13 @@ int32_t GetVcpmOffloadedData(
     uint32_t offset_list_index = 0;
     datapool_offset_list.count = vcpm_info->offloaded_param_info_list.length;
     datapool_offset_list.list = (uint32_t*)ACDB_MALLOC(AcdbCalDefDataPoolPair, datapool_offset_list.count);
+
+    if (datapool_offset_list.list == NULL)
+    {
+        ACDB_ERR("Error[%d]: Failed allocate memory", AR_EFAILED);
+        goto end;
+    }
+
     ar_mem_set(datapool_offset_list.list, 0, sizeof(AcdbCalDefDataPoolPair) * datapool_offset_list.count);
 
     vcpm_info->ignore_iid_list_update = TRUE;
