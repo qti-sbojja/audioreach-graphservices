@@ -7229,7 +7229,7 @@ int32_t GetVcpmOffloadedData(
     //keep track of data offsets
     uint32_t offset_list_index = 0;
     datapool_offset_list.count = vcpm_info->offloaded_param_info_list.length;
-    datapool_offset_list.list = (uint32_t*)ACDB_MALLOC(AcdbCalDefDataPoolPair, datapool_offset_list.count);
+    datapool_offset_list.list = (uint32_t*)ACDB_MALLOC(AcdbFileToVcpmDataPoolOffsetInfo, datapool_offset_list.count);
 
     if (datapool_offset_list.list == NULL)
     {
@@ -7237,7 +7237,7 @@ int32_t GetVcpmOffloadedData(
         goto end;
     }
 
-    ar_mem_set(datapool_offset_list.list, 0, sizeof(AcdbCalDefDataPoolPair) * datapool_offset_list.count);
+    ar_mem_set(datapool_offset_list.list, 0, sizeof(AcdbFileToVcpmDataPoolOffsetInfo) * datapool_offset_list.count);
 
     vcpm_info->ignore_iid_list_update = TRUE;
 
@@ -7246,31 +7246,35 @@ int32_t GetVcpmOffloadedData(
         offloaded_param_info =
             (AcdbVcpmOffloadedParamInfo*)opi_node->p_struct;
 
-        bool_t should_write_to_data_pool = TRUE;
-        AcdbCalDefDataPoolPair* offset_pair = NULL;
+        bool_t found_existing_offset = FALSE;
+        AcdbFileToVcpmDataPoolOffsetInfo* offset_pair = NULL;
 
         /* prevent writing the same payload multiple times in the data pool */
         for (uint32_t i = 0; i < datapool_offset_list.count; i++)
         {
-            offset_pair = (AcdbCalDefDataPoolPair*)datapool_offset_list.list + i;
+            offset_pair = (AcdbFileToVcpmDataPoolOffsetInfo*)datapool_offset_list.list + i;
             if (offloaded_param_info->file_offset_data_pool == offset_pair->file_offset_data_pool &&
                 offloaded_param_info->file_offset_cal_def == offset_pair->file_offset_cal_def)
             {
-                should_write_to_data_pool = FALSE;
+                found_existing_offset = TRUE;
                 break;
             }
         }
 
-        if (should_write_to_data_pool)
+        if (!found_existing_offset)
         {
             //Add new entry
-            offset_pair = (AcdbCalDefDataPoolPair*)datapool_offset_list.list + offset_list_index;
+            offset_pair = (AcdbFileToVcpmDataPoolOffsetInfo*)datapool_offset_list.list + offset_list_index;
             offset_pair->file_offset_cal_def = offloaded_param_info->file_offset_cal_def;
             offset_pair->file_offset_data_pool = offloaded_param_info->file_offset_data_pool;
             offset_list_index++;
         }
 
-        if(should_write_to_data_pool)
+        if (found_existing_offset)
+        {
+            param_info.offset_vcpm_data_pool = offset_pair->vcpm_offset_data_pool;
+        }
+        else
         {
             status = GetVcpmModuleParamPair(
                 vcpm_info, &id_pair, NULL, &should_skip_param, &param_info,
@@ -7280,8 +7284,11 @@ int32_t GetVcpmOffloadedData(
                 goto end;
             }
 
+            offset_pair->vcpm_offset_data_pool = param_info.offset_vcpm_data_pool;
+
             if (should_skip_param)
             {
+                ACDB_ERR("skipped iid: %x pid:%x", id_pair.module_iid, id_pair.parameter_id)
                 continue;
             }
 
@@ -8722,7 +8729,6 @@ int32_t AcdbCmdGetProcSubgraphCalDataPersist(
         info.hw_accel_module_list_offset =
             hw_accel_sg_info.module_list_offset;
 
-        
         status = DataProcGetSubgraphProcIidMap(info.subgraph_id, &sg_mod_iid_map);
         if (AR_EOK != status)
         {

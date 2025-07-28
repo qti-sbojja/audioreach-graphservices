@@ -441,13 +441,15 @@ struct _acdb_vcpm_offloaded_param_info_t
     uint32_t blob_offset_vcpm_param_info;
 };
 
-typedef struct _acdb_cal_def_data_pool_offset_pair_t AcdbCalDefDataPoolPair;
-struct _acdb_cal_def_data_pool_offset_pair_t
+typedef struct _acdb_file_to_vcpm_data_pool_offset_info_t AcdbFileToVcpmDataPoolOffsetInfo;
+struct _acdb_file_to_vcpm_data_pool_offset_info_t
 {
     /**< File offset to the <IID, PID> pair in the VCPM Cal DEF Chunk */
     uint32_t file_offset_cal_def;
     /**< File offset to the parameters payload in the Global Datapool Chunk */
     uint32_t file_offset_data_pool;
+    /**< Blob offset to the parameter info in the VCPM Datapool Chunk */
+    uint32_t vcpm_offset_data_pool;
 };
 
 typedef struct _acdb_proc_domain_module_list_t AcdbProcDomainModuleList;
@@ -464,7 +466,8 @@ struct _acdb_proc_domain_module_list_t
 #include "acdb_end_pack.h"
 ;
 
-typedef struct _acdb_subgraph_proc_domain_module_map_t AcdbSubgraphPdmMap;
+typedef struct _acdb_subgraph_proc_domain_module_map_t
+AcdbSubgraphPdmMap;
 #include "acdb_begin_pack.h"
 struct _acdb_subgraph_proc_domain_module_map_t
 {
