@@ -881,6 +881,8 @@ int32_t AcdbFileManQwspFileIO(
         {
             ACDB_ERR("Error[%d]: Failed to close the workspace file", status);
         }
+        //Clear handle in case close is called again
+        ws_info->file_handle = NULL;
         break;
     default:
         break;
