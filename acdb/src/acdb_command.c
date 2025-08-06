@@ -7253,8 +7253,7 @@ int32_t GetVcpmOffloadedData(
         for (uint32_t i = 0; i < datapool_offset_list.count; i++)
         {
             offset_pair = (AcdbFileToVcpmDataPoolOffsetInfo*)datapool_offset_list.list + i;
-            if (offloaded_param_info->file_offset_data_pool == offset_pair->file_offset_data_pool &&
-                offloaded_param_info->file_offset_cal_def == offset_pair->file_offset_cal_def)
+            if (offloaded_param_info->file_offset_data_pool == offset_pair->file_offset_data_pool)
             {
                 found_existing_offset = TRUE;
                 break;
