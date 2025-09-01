@@ -162,10 +162,12 @@ int32_t gsl_send_spf_cmd(gpr_packet_t **packet, struct gsl_signal *sig_p,
 		dst_port = (*packet)->dst_port;
 	#endif
 	if(opcode != APM_CMD_REGISTER_MODULE_EVENTS) {
+		if ((debug_token << DEBUG_TOKEN_SHIFT) == 0)
+			++debug_token;
 		INSERT_DEBUG_TOKEN((*packet)->token, debug_token);
 		++debug_token;
         	if(sig_p == NULL)
-    	        GSL_VERBOSE("sending pkt opcode 0x%x token 0x%08x", opcode, (*packet)->token);
+			GSL_VERBOSE("sending pkt opcode 0x%x token 0x%08x", opcode, (*packet)->token);
 	}
 
 	rc = __gpr_cmd_async_send(*packet);
