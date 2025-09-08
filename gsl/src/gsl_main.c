@@ -1220,10 +1220,9 @@ int32_t gsl_open(const struct gsl_key_vector *graph_key_vect,
 		goto cleanup;
 	}
 
+	GSL_MUTEX_LOCK(gsl_ctxt.open_close_lock);
 	for (i = AR_SUB_SYS_ID_FIRST; i <= AR_SUB_SYS_ID_LAST; i++) {
-		GSL_MUTEX_LOCK(gsl_ctxt.open_close_lock);
 		if (gsl_ctxt.spf_restart[i]) {
-			GSL_MUTEX_UNLOCK(gsl_ctxt.open_close_lock);
 
 			// handle master proc restarting
 			gsl_shmem_remap_pre_alloc(i);
@@ -1236,7 +1235,6 @@ int32_t gsl_open(const struct gsl_key_vector *graph_key_vect,
 				if (proc_domains[j].proc_type == DYNAMIC_PD)
 					supported_ss_mask &= ~(GSL_GET_SPF_SS_MASK(proc_domains[j].proc_id));
 			}
-			// open_close_lock will be acquired insides
 			rc = gsl_send_spf_satellite_info(i, supported_ss_mask,
 				GSL_MAIN_SRC_PORT, &gsl_ctxt.rsp_signal);
 			if (rc) {
@@ -1253,17 +1251,23 @@ int32_t gsl_open(const struct gsl_key_vector *graph_key_vect,
 				}
 			}
 
-			rc = gsl_do_load_bootup_dyn_modules(i, NULL);
-			if (rc != AR_EOK && rc != AR_ENOTEXIST) {
-				GSL_ERR("dynamic module load failed for master_proc %d rc %d", i, rc);
-				continue;
+			/* retry for up to 3 seconds to help in cases
+			    where ADSP RPC thread not ready */
+			for (j = 0; j < GSL_DYN_DL_NUM_RETRIES_SSR; ++j) {
+				rc = gsl_do_load_bootup_dyn_modules(i, NULL);
+				if (rc) {
+					ar_osal_micro_sleep(GSL_TIMEOUT_US(GSL_DYN_DL_RETRY_MS));
+				} else {
+					gsl_ctxt.spf_restart[i] = FALSE;
+					break;
+				}
 			}
 
 			GSL_MUTEX_LOCK(gsl_ctxt.open_close_lock);
 			gsl_ctxt.spf_restart[i] = FALSE;
 		}
-		GSL_MUTEX_UNLOCK(gsl_ctxt.open_close_lock);
 	}
+	GSL_MUTEX_UNLOCK(gsl_ctxt.open_close_lock);
 
     /*
      * Initialize graph instance and register to GPR to
