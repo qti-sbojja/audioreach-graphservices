@@ -11515,8 +11515,8 @@ int32_t GetAllAudioCKVVariations(AcdbKeyVectorLut *lookup,
         }
 
         ACDB_MEM_CPY_SAFE((uint8_t*)rsp->key_vector_list + *blob_offset,
-            num_keys * sizeof(AcdbKeyValuePair),
-            &num_keys, num_keys * sizeof(AcdbKeyValuePair));
+            sizeof(uint32_t),
+            &num_keys, sizeof(uint32_t));
         *blob_offset += sizeof(uint32_t);
 
         if (num_keys == 0) continue;
