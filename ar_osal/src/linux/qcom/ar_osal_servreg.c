@@ -38,6 +38,8 @@ SR_DL_Handle*       pd_mapper_handle;
 #else
 #include "ar_osal_sys_id.h"
 char_t domain_name[AR_SUB_SYS_ID_LAST + 1][24] = { "msm/adsp/audio_pd", "msm/mdsp/audio_pd", "msm/adsp/audio_pd","msm/apss/audio_pd","msm/sdsp/audio_pd","msm/cdsp/audio_pd" };
+static char g_ar_osal_servreg_stub_handle;
+#define AR_OSAL_SERVREG_STUB ((ar_osal_servreg_t)&g_ar_osal_servreg_stub_handle)
 #endif /* AR_OSAL_USE_PD_NOTIFIER */
 
 #define ADSP_LOADER_PATH    "/sys/kernel/boot_adsp/ssr"
@@ -340,7 +342,7 @@ ar_osal_servreg_t ar_osal_servreg_register(_In_ ar_osal_client_type  client_type
     _In_ ar_osal_servreg_entry_type *service)
 {
 #ifndef AR_OSAL_USE_PD_NOTIFIER
-    return 1;
+    return AR_OSAL_SERVREG_STUB;
 #else
     int32_t status = AR_EOK;
     //ar_osal_servreg_t* handle = NULL;
