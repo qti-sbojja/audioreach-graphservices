@@ -19,6 +19,7 @@ AM_CFLAGS += -I$(top_srcdir)/acdb/api
 AM_CFLAGS += -I$(top_srcdir)/spf/api/ar_utils -I$(top_srcdir)/spf/api/apm -I$(top_srcdir)/spf/api/modules
 
 AM_CFLAGS += -DSESSION_ARRAY_SIZE=200
+AM_CFLAGS += -D_GNU_SOURCE
 
 gpr_sources =  ./api/gpr_api.h \
                ./api/gpr_api_inline.h \
