@@ -441,14 +441,47 @@ struct _acdb_vcpm_offloaded_param_info_t
     uint32_t blob_offset_vcpm_param_info;
 };
 
-typedef struct _acdb_cal_def_data_pool_offset_pair_t AcdbCalDefDataPoolPair;
-struct _acdb_cal_def_data_pool_offset_pair_t
+typedef struct _acdb_file_to_vcpm_data_pool_offset_info_t AcdbFileToVcpmDataPoolOffsetInfo;
+struct _acdb_file_to_vcpm_data_pool_offset_info_t
 {
     /**< File offset to the <IID, PID> pair in the VCPM Cal DEF Chunk */
     uint32_t file_offset_cal_def;
     /**< File offset to the parameters payload in the Global Datapool Chunk */
     uint32_t file_offset_data_pool;
+    /**< Blob offset to the parameter info in the VCPM Datapool Chunk */
+    uint32_t vcpm_offset_data_pool;
 };
+
+typedef struct _acdb_proc_domain_module_list_t AcdbProcDomainModuleList;
+#include "acdb_begin_pack.h"
+struct _acdb_proc_domain_module_list_t
+{
+    /**< The processor domain that the modules in the list run under */
+    uint32_t proc_domain_id;
+    /**< The number of modules in the module list */
+    uint32_t module_count;
+    /**< A list of modules associated with proc_domain_id */
+    AcdbModuleInstance module_list[0];
+}
+#include "acdb_end_pack.h"
+;
+
+typedef struct _acdb_subgraph_proc_domain_module_map_t
+AcdbSubgraphPdmMap;
+#include "acdb_begin_pack.h"
+struct _acdb_subgraph_proc_domain_module_map_t
+{
+    /**< The subgraph associated with the modules */
+    uint32_t subgraph_id;
+    /**< the number of processor domains running in the subgraph */
+    uint32_t proc_count;
+    /**< the size of the proccessor domain module list */
+    uint32_t size;
+    /**< A list that maps modules to a processor domain */
+    AcdbProcDomainModuleList* proc_info;
+}
+#include "acdb_end_pack.h"
+;
 
 typedef struct _acdb_vcpm_blob_info_t AcdbVcpmBlobInfo;
 struct _acdb_vcpm_blob_info_t
@@ -459,6 +492,11 @@ struct _acdb_vcpm_blob_info_t
     uint32_t subgraph_id;
     /**< The Processor to get calibration for */
     uint32_t proc_id;
+    /**< A flag used to filter calibration based on processor domain */
+    bool_t should_filter_cal_by_proc_domain;
+    /**< A pointer to a mapping that associates module instances with
+    the processor domains they run on */
+    AcdbSubgraphPdmMap* sg_mod_iid_map;
     /**< A flag indicating whether check for hw accel based calibraion */
     bool_t should_check_hw_accel;
     /**< An offset to a Subgrahps hardware accel module list */

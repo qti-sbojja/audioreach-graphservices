@@ -13,9 +13,13 @@ AM_CFLAGS += -I$(srcdir)/datalinks/gpr_lx/inc
 AM_CFLAGS += -I$(srcdir)/ext/logging/inc
 AM_CFLAGS += -I$(srcdir)/ext/dynamic_allocation/inc
 AM_CFLAGS += -I$(top_srcdir)/ar_osal/api
+AM_CFLAGS += -I$(top_srcdir)/ar_util/api
+AM_CFLAGS += -I$(top_srcdir)/gpr/api
+AM_CFLAGS += -I$(top_srcdir)/acdb/api
 AM_CFLAGS += -I$(top_srcdir)/spf/api/ar_utils -I$(top_srcdir)/spf/api/apm -I$(top_srcdir)/spf/api/modules
 
 AM_CFLAGS += -DSESSION_ARRAY_SIZE=200
+AM_CFLAGS += -D_GNU_SOURCE
 
 gpr_sources =  ./api/gpr_api.h \
                ./api/gpr_api_inline.h \
@@ -74,5 +78,5 @@ endif
 
 libar_gpr_la_SOURCES = $(gpr_c_sources)
 libar_gpr_la_CFLAGS = $(AM_CFLAGS)
-libar_gpr_la_LDFLAGS = -shared -avoid-version
+libar_gpr_la_LDFLAGS = -shared -version-number @LT_VERSION_NUMBER@
 

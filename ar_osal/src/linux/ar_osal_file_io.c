@@ -65,6 +65,14 @@ int32_t ar_fopen(_Out_ ar_fhandle *handle,
         break;
     case AR_FOPEN_READ_ONLY_WRITE:
         file_mode = "r+";
+        fileptr = fopen(path, "r");
+        if(fileptr){
+            fclose(fileptr);
+        }
+        else {
+            rc = AR_ENOTEXIST;
+            goto done;
+        }
         break;
     case AR_FOPEN_APPEND:
         file_mode = "a";

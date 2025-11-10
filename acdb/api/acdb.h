@@ -1954,6 +1954,9 @@ The memory types are: System Heap(0x0), Physically Contiguous Memory (0x01)
 processor domain ID */
 #define ACDB_HW_ACCEL_MEM_TYPE(proc_id) ((AcdbHwAccelMemType)(proc_id >> 30))
 
+/**< Extracts proc id from processor domain ID */
+#define ACDB_HW_ACCEL_PROC_ID(proc_id) (proc_id & 0x3FFFFFFF)
+
 typedef struct _acdb_subgraph_proc_pair_t AcdbSubgraphProcPair;
 struct _acdb_subgraph_proc_pair_t
 {
