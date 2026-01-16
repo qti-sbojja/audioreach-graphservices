@@ -19,6 +19,7 @@
 #include "asps_ads_usecase_api.h"
 #include "asps_us_rendering_usecase_api.h"
 #include "asps_sdz_usecase_api.h"
+#include "asps_asr_usecase_api.h"
 
 #ifdef __cplusplus
 extern "C" {
