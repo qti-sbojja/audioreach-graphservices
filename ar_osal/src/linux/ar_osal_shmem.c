@@ -71,6 +71,29 @@ int32_t ar_shmem_init(void)
     return AR_EOK;
 }
 
+/**
+ * \brief Initialize the shared memory interface using a list of processor domains (V2 API).
+ *
+ * This V2 API selects the appropriate shared memory implementation
+ * based on the provided list of processor domain IDs.
+ *
+ * Passing num_master_procs = 0 results in behavior equivalent to the
+ * V1 API (ar_shmem_init), allowing a smooth transition from V1 to V2.
+ *
+ * \param[in] num_master_procs   Number of processor domain IDs.
+ * \param[in] master_procs       Pointer to an array of processor domain IDs.
+ *
+ * \return
+ *  0        -- Success
+ *  Nonzero  -- Failure
+ */
+_IRQL_requires_max_(PASSIVE_LEVEL)
+int32_t ar_shmem_init_v2(uint32_t num_master_procs, uint32_t *master_procs)
+{
+    PAGED_FUNCTION();
+    return AR_EOK;
+}
+
 /*
  * \brief Allocates shared memory.
  *  Only non cached memory allocation supported.

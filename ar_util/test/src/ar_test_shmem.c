@@ -11,9 +11,17 @@
 void ar_test_shmem_main()
 {
 	int32_t status = AR_EOK;
-    uint8_t sys_id = AR_AUDIO_DSP;
+	uint8_t sys_id = AR_AUDIO_DSP;
+	uint32_t num_master_procs = 1;
 	ar_shmem_info shmem_info = { AR_SHMEM_VIRTUAL_MEMORY/*virtual & cached*/, 4096, AR_SHMEM_CACHED, AR_SHMEM_BUFFER_ADDRESS, 0,0,0,0, NULL,0, 1, &sys_id};
 	status = ar_shmem_init();
+	if (AR_EOK != status)
+	{
+		AR_LOG_ERR(LOG_TAG,"failed to shmem init %d ", status);
+		goto end;
+	}
+
+	status = ar_shmem_init_v2(num_master_procs, &sys_id);
 	if (AR_EOK != status)
 	{
 		AR_LOG_ERR(LOG_TAG,"failed to shmem init %d ", status);
