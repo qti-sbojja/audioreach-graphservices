@@ -3,6 +3,15 @@
 #
 # Copyright (c) Qualcomm Technologies, Inc. and/or its subsidiaries.
 set -ex
+PREBUILD_SCRIPT_PATH="${PREBUILD_SCRIPT:-$(dirname "${BASH_SOURCE[0]}")/pre_build.sh}"
+source "$PREBUILD_SCRIPT_PATH"
+
+# load build args from file if environment variable is not set
+if [ -z "${BUILD_ARGS}" ]; then
+    BUILD_OPTIONS_FILE="${GITHUB_WORKSPACE}/ci/build_options.txt"
+    BUILD_ARGS="$(sed -E 's/#.*$//' "$BUILD_OPTIONS_FILE" | sed '/^[[:space:]]*$/d' | tr '\n' ' ')"
+fi
+
 echo "Running build script..."
 # Build/Compile audioreach-graphservices
 source ${GITHUB_WORKSPACE}/install/environment-setup-armv8-2a-qcom-linux
@@ -15,6 +24,6 @@ autoreconf -Wcross --verbose --install --force --exclude=autopoint
 autoconf --force
 
 # Run the configure script with the specified arguments
-./configure CFLAGS="-Wno-int-conversion" ${BUILD_ARGS} --with-sanitized-headers=${GITHUB_WORKSPACE}/install/sysroots/armv8-2a-poky-linux/usr/lib/modules/$KERNEL_VERSION/build/include/uapi/sound/qcom
+./configure CFLAGS="-Wno-int-conversion" ${BUILD_ARGS} --with-sanitized-headers=${GITHUB_WORKSPACE}/install/sysroots/armv8-2a-poky-linux/usr/lib/module/build/include/uapi/sound/qcom
 # make
 make DESTDIR=${GITHUB_WORKSPACE}/build install
