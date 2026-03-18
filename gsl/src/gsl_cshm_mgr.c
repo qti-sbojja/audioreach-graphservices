@@ -18,7 +18,6 @@
 #include "gpr_api_inline.h"
 #include "ar_spf_cmd_api.h"
 
-#define CLIENT_SHM_ENABLED
 #ifdef CLIENT_SHM_ENABLED
 
 typedef struct {
