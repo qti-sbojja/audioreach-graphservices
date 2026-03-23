@@ -10,21 +10,19 @@ url="https://raw.githubusercontent.com/AudioReach/audioreach-workflows/master/.g
 
 # Download <sdk>.sh from aws s3 bucket and install the sdk
 if [ ! -d "${GITHUB_WORKSPACE}/install" ]; then
-    if [ -z "${SDK_NAME}" ]; then
-        echo "SDK_NAME environment variable is not set. Fetching from JSON."
-        if curl -fsSL -o target_image.json "${url}"; then
-            SDK=$(jq -r 'to_entries[0].value.SDK_name' target_image.json)
-            if [ -n "$SDK" ] && [ "$SDK" != "null" ]; then
-                export SDK_NAME="$SDK"
-                echo "SDK_NAME set to ${SDK_NAME}"
-            else
-                echo "Error: SDK_name not found in JSON." >&2
-                exit 3
-            fi
+    echo "SDK_NAME environment variable is not set. Fetching from JSON."
+    if curl -fsSL -o target_image.json "${url}"; then
+        SDK=$(jq -r 'to_entries[0].value.SDK_name' target_image.json)
+        if [ -n "$SDK" ] && [ "$SDK" != "null" ]; then
+            export SDK_NAME="$SDK"
+            echo "SDK_NAME set to ${SDK_NAME}"
         else
-            echo "Failed to fetch target_image.json from $url" >&2
-            exit 1
+            echo "Error: SDK_name not found in JSON." >&2
+            exit 3
         fi
+    else
+        echo "Failed to fetch target_image.json from $url" >&2
+        exit 1
     fi
     if aws s3 cp s3://qli-prd-audior-gh-artifacts/AudioReach/meta-audioreach/post_merge_build/${SDK_NAME} "${GITHUB_WORKSPACE}"; then
         echo "SDK downloaded successfully."

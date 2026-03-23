@@ -20,3 +20,9 @@ branches:
           - spf/api/vcpm/*.h
           - spf/api/ar_utils/*.h
           - spf/api/ar_utils/generic/*.h
+abi_checks:
+  - path: build/usr/lib/libar-gsl.so
+  - path: build/usr/lib/libar-gpr.so
+  - path: build/usr/lib/libar-util.so
+  - path: build/usr/lib/libar-osal.so
+  - path: build/usr/lib/libar-acdb.so

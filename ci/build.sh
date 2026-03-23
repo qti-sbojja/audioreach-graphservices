@@ -7,7 +7,7 @@ PREBUILD_SCRIPT_PATH="${PREBUILD_SCRIPT:-$(dirname "${BASH_SOURCE[0]}")/pre_buil
 source "$PREBUILD_SCRIPT_PATH"
 
 # load build args from file if environment variable is not set
-if [ -z "${BUILD_ARGS}" ]; then
+if [ -z "${BUILD_ARGS:-}" ]; then
     BUILD_OPTIONS_FILE="${GITHUB_WORKSPACE}/ci/build_options.txt"
     BUILD_ARGS="$(sed -E 's/#.*$//' "$BUILD_OPTIONS_FILE" | sed '/^[[:space:]]*$/d' | tr '\n' ' ')"
 fi
