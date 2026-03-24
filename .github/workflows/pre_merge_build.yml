@@ -81,6 +81,9 @@ jobs:
 
   trigger_lava:
     needs: [ process_image, filter_test_matrix ]
+    permissions:
+      checks: write
+      pull-requests: write
     uses: Audioreach/audioreach-workflows/.github/workflows/test.yml@master
     secrets: inherit
     with:
