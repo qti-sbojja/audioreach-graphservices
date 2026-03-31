@@ -32,8 +32,8 @@ int32_t ar_shmem_init_v2(uint32_t num_master_procs, uint32_t *master_procs)
             break;
         }
     }
-    int32_t rc = ( are_on_apps ? ar_shmem_ap_init() : ar_shmem_dsp_init() );
-    return rc;
+
+    return are_on_apps ? ar_shmem_ap_init() : ar_shmem_dsp_init();
 }
 
 int32_t ar_shmem_alloc(ar_shmem_info *info)

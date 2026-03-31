@@ -1,6 +1,6 @@
 /**
  *
- * \file ar_osal_shmem.c
+ * \file ar_osal_shmem.h
  *
  * \brief
  *      Defines public APIs for shared memory allocation for ARM master processor.

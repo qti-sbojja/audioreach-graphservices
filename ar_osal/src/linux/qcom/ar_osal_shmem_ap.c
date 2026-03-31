@@ -23,27 +23,21 @@
  * 0 -- Success
  * Nonzero -- Failure
  */
-_IRQL_requires_max_(PASSIVE_LEVEL)
-int32_t ar_shmem_validate_sys_id(_In_ uint8_t num_sys_id, _In_ uint8_t *sys_id)
+static int32_t ar_shmem_validate_sys_id(uint8_t num_sys_id, ar_shmem_proc_info *sys_id)
 {
-   PAGED_FUNCTION();
-   int32_t status = AR_EOK;
-   if (0 == num_sys_id || NULL == sys_id)
-   {
-      status = AR_EBADPARAM;
-      goto end;
-   }
-   for (uint8_t i = 0; i < num_sys_id; i++)
-   {
-      if (AR_AUDIO_DSP != sys_id[i] && AR_MODEM_DSP != sys_id[i] && AR_SENSOR_DSP != sys_id[i] &&
-          AR_COMPUTE_DSP != sys_id[i] && AR_APSS != sys_id[i] && AR_APSS2 != sys_id[i])
-      {
-         status = AR_EBADPARAM;
-         break;
-      }
-   }
-end:
-   return status;
+    int32_t status = AR_EOK;
+
+    if (0 == num_sys_id || NULL == sys_id)
+        return AR_EBADPARAM;
+
+    for (uint8_t i = 0; i < num_sys_id; ++i) {
+        if (AR_APSS != sys_id[i].proc_id) {
+            status = AR_EBADPARAM;
+            break;
+        }
+    }
+
+    return status;
 }
 /*
  *\brief ar_shmem_init
@@ -52,10 +46,8 @@ end:
  * 0 -- Success
  * Nonzero -- Failure
  */
-_IRQL_requires_max_(PASSIVE_LEVEL)
 int32_t ar_shmem_ap_init(void)
 {
-   PAGED_FUNCTION();
    return AR_EOK;
 }
 /*
@@ -71,10 +63,8 @@ int32_t ar_shmem_ap_init(void)
  * Nonzero -- Failure
  *
  */
-_IRQL_requires_max_(PASSIVE_LEVEL)
 int32_t ar_shmem_ap_alloc(_Inout_ ar_shmem_info *info)
 {
-   PAGED_FUNCTION();
    int32_t status = AR_EOK;
    void   *p      = 0;
    if (NULL == info || 0 == info->buf_size)
@@ -137,10 +127,8 @@ end:
  * 0 -- Success
  * Nonzero -- Failure
  */
-_IRQL_requires_max_(PASSIVE_LEVEL)
 int32_t ar_shmem_ap_free(_In_ ar_shmem_info *info)
 {
-   PAGED_FUNCTION();
    int32_t status = AR_EOK;
    if (NULL == info || NULL == info->vaddr)
    {
@@ -167,27 +155,14 @@ end:
  * Buffer start address should be 64bit aligned.
  *
  * \param[in_out] info: pointer to ar_shmem_info.
- * required input parameters in ar_shmem_info
- * ar_shmem_info_t.cache_type
- * ar_shmem_info_t.buf_size
- * ar_shmem_info_t.mem_type
- * ar_shmem_info_t.pa_lsw
- * ar_shmem_info_t.pa_msw
- * ar_shmem_info_t.num_sys_id
- * ar_shmem_info_t.sys_id
- * required output parameters in ar_shmem_info
- * ar_shmem_info_t.ipa_lsw
- * ar_shmem_info_t.ipa_msw
  *
  *\return
  * 0 -- Success
  * Nonzero -- Failure
  *
  */
-_IRQL_requires_max_(PASSIVE_LEVEL)
 int32_t ar_shmem_ap_map(ar_shmem_info *info)
 {
-   PAGED_FUNCTION();
    int32_t status = AR_EOK;
    if (NULL == info || 0 == info->buf_size || (0 == info->pa_lsw && 0 == info->pa_msw))
    {
@@ -229,14 +204,6 @@ end:
  *\brief Helps unmap the shared memory allocated externally with SMMU
  *
  *\param[in] info: pointer to ar_shmem_info.
- * required input parameters in ar_shmem_info
- * ar_shmem_info_t.cache_type
- * ar_shmem_info_t.buf_size
- * ar_shmem_info_t.mem_type
- * ar_shmem_info_t.pa_lsw
- * ar_shmem_info_t.pa_msw
- * ar_shmem_info_t.num_sys_id
- * ar_shmem_info_t.sys_id
  *
  *\return
  * 0 -- Success
@@ -245,7 +212,6 @@ end:
  */
 int32_t ar_shmem_ap_unmap(ar_shmem_info *info)
 {
-   PAGED_FUNCTION();
    int32_t status = AR_EOK;
    if (NULL == info || 0 == info->buf_size || (0 == info->pa_lsw && 0 == info->pa_msw))
    {
@@ -284,7 +250,6 @@ end:
  */
 int32_t ar_shmem_ap_hyp_assign_phys(ar_shmem_hyp_assign_phys_info *info)
 {
-   PAGED_FUNCTION();
    __UNREFERENCED_PARAM(info);
    /*no op*/
    return AR_EOK;
@@ -296,10 +261,8 @@ int32_t ar_shmem_ap_hyp_assign_phys(ar_shmem_hyp_assign_phys_info *info)
  * 0 -- Success
  * Nonzero -- Failure
  */
-_IRQL_requires_max_(PASSIVE_LEVEL)
 int32_t ar_shmem_ap_deinit(void)
 {
-   PAGED_FUNCTION();
    return AR_EOK;
 }
 /**
@@ -317,7 +280,6 @@ int32_t ar_shmem_ap_deinit(void)
  */
 int32_t ar_shmem_ap_get_uid(uint64_t alloc_handle, uint64_t *uid)
 {
-   PAGED_FUNCTION();
    int32_t status = AR_EFAILED;
    if (NULL != uid)
    {
