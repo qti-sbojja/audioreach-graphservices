@@ -29,6 +29,7 @@
 #include <cutils/properties.h>
 #endif
 #include "ar_osal_shmem.h"
+#include "ar_osal_shmem_dsp.h"
 #include "ar_osal_error.h"
 #include "ar_osal_log.h"
 #ifdef AR_OSAL_USE_DYNAMIC_PD
@@ -291,7 +292,7 @@ end:
  * 0 -- Success
  *  Nonzero -- Failure
  */
-int32_t ar_shmem_init(void)
+int32_t ar_shmem_dsp_init(void)
 {
     int32_t status = AR_EOK;
     bool use_uncached_heap = false;
@@ -391,7 +392,7 @@ int32_t ar_shmem_init(void)
  *  Nonzero -- Failure
  *
  */
-int32_t ar_shmem_alloc(_Inout_ ar_shmem_info *info)
+int32_t ar_shmem_dsp_alloc(_Inout_ ar_shmem_info *info)
 {
     int32_t status = AR_EOK;
     ar_shmem_handle_data_t *shmem_handle = NULL;
@@ -532,7 +533,7 @@ int32_t ar_shmem_alloc(_Inout_ ar_shmem_info *info)
  *  0 -- Success
  *  Nonzero -- Failure
  */
-int32_t ar_shmem_free(_In_ ar_shmem_info *info)
+int32_t ar_shmem_dsp_free(_In_ ar_shmem_info *info)
 {
     int32_t status = AR_EOK;
     ar_shmem_handle_data_t *shmem_handle = NULL;
@@ -639,7 +640,7 @@ int32_t ar_shmem_free(_In_ ar_shmem_info *info)
  * Nonzero -- Failure
  *
  */
-int32_t ar_shmem_map(_Inout_ ar_shmem_info *info)
+int32_t ar_shmem_dsp_map(_Inout_ ar_shmem_info *info)
 {
     int32_t status = AR_EOK, i = 0;
     bool_t static_pd = false;
@@ -703,7 +704,7 @@ end:
  * Nonzero -- Failure
  *
  */
-int32_t ar_shmem_unmap(_In_ ar_shmem_info *info)
+int32_t ar_shmem_dsp_unmap(_In_ ar_shmem_info *info)
 {
     int32_t status = AR_EOK, i = 0;
     bool_t static_pd = false;
@@ -763,7 +764,7 @@ end:
  *  0 -- Success
  *  Nonzero -- Failure
  */
-int32_t ar_shmem_hyp_assign_phys(ar_shmem_hyp_assign_phys_info *info)
+int32_t ar_shmem_dsp_hyp_assign_phys(ar_shmem_hyp_assign_phys_info *info)
 {
     int32_t status = AR_EOK;
     uint32_t shm_addr_lsw = 0;
@@ -830,7 +831,7 @@ end:
  *  0 -- Success
  *  Nonzero -- Failure
  */
-int32_t ar_shmem_deinit(void)
+int32_t ar_shmem_dsp_deinit(void)
 {
 
   pthread_mutex_lock(&ar_shmem_lock);

@@ -40,7 +40,9 @@ osal_c_sources = ./src/linux/ar_osal_file_io.c \
 
 if ARGS_VENDOR_QCOM
 if AUDIO_DMA_SUPPORT
-osal_c_sources += ./src/linux/qcom/ar_osal_shmem_db.c
+osal_c_sources += ./src/linux/qcom/ar_osal_shmem_db.c \
+                  ./src/linux/qcom/ar_osal_shmem.c \
+                  ./src/linux/qcom/ar_osal_shmem_ap.c
 else # Use ion based shmem implementation.
 osal_c_sources += ./src/linux/qcom/ar_osal_shmem_ion.c
 endif

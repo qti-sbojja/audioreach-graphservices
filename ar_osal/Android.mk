@@ -50,7 +50,9 @@ LOCAL_SRC_FILES += src/linux/qcom/dyn_pd/ar_osal_dyn_pd.c
 ifeq ($(TARGET_KERNEL_VERSION),$(filter $(TARGET_KERNEL_VERSION), 4.14 4.19 5.4))
 LOCAL_SRC_FILES += src/linux/qcom/ar_osal_shmem_ion.c
 else
-LOCAL_SRC_FILES += src/linux/qcom/ar_osal_shmem_db.c
+LOCAL_SRC_FILES += src/linux/qcom/ar_osal_shmem_db.c \
+                   src/linux/qcom/ar_osal_shmem.c \
+                   src/linux/qcom/ar_osal_shmem_ap.c
 endif
 
 LOCAL_SHARED_LIBRARIES := liblog \
