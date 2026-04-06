@@ -26,6 +26,7 @@ spf_sources = ./api/apm/apm_api.h \
                 ./api/ar_utils/ar_defs.h \
                 ./api/asps/asps_ads_usecase_api.h \
                 ./api/asps/asps_upd_usecase_api.h \
+                ./api/asps/asps_asr_usecase_api.h \
                 ./api/asps/asps_acd_usecase_api.h \
                 ./api/asps/asps_acm_api.h \
                 ./api/modules/aac_decoder_api.h \
@@ -143,6 +144,7 @@ asps_sources =  ./api/asps/asps_ads_usecase_api.h \
                 ./api/asps/asps_upd_usecase_api.h \
                 ./api/asps/asps_acd_usecase_api.h \
                 ./api/asps/asps_acm_api.h \
+                ./api/asps/asps_asr_usecase_api.h \
                 ./api/asps/asps_sdz_usecase_api.h \
                 ./api/asps/asps_us_rendering_usecase_api.h
 
